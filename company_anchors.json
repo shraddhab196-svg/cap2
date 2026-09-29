@@ -1,0 +1,37 @@
+{
+  "company_url": "https://www.bcg.com/germany",
+  "anchors": [
+    {
+      "title": "End‑to‑End AI Product Delivery",
+      "company_evidence": "BCG X teams own the full analytics value‑chain end‑to‑end: framing challenges, designing algorithms, implementing, deploying scalable solutions, and enabling AI adoption.",
+      "job_connection": "The role requires designing, building, and deploying AI‑driven solutions that deliver measurable business impact across industries.",
+      "candidate_evidence": "In multiple cover letters (e.g., ERGO, HappyHotelML, JetBrains, PosTunning) the candidate built a production‑grade LLM pipeline and an autonomous agent system, handling data ingestion, model training, Docker‑based deployment, monitoring, and a React dashboard for non‑technical users.",
+      "anchor": "The candidate’s proven ability to take a research prototype (LLM‑guided knowledge‑graph repair or manufacturing anomaly detection) through the full lifecycle to a deployed, monitored product matches BCG X’s end‑to‑end delivery model.",
+      "source_url": "https://www.bcg.com/germany"
+    },
+    {
+      "title": "Client‑Facing Communication & Stakeholder Translation",
+      "company_evidence": "BCG emphasizes a collaborative model where consultants work closely with client teams and must communicate complex analytical concepts to both technical and non‑technical audiences.",
+      "job_connection": "The role expects clear communication of analytical concepts to diverse stakeholders in client‑facing environments.",
+      "candidate_evidence": "Letters 1, 3, and 7 describe building React dashboards and REST APIs that surface AI insights to domain experts, and explicitly mention translating model outputs for non‑technical audiences at Fraunhofer and DFKI.",
+      "anchor": "The candidate’s experience turning model outputs into actionable dashboards and explaining failures to researchers demonstrates the stakeholder communication skill BCG values.",
+      "source_url": "https://www.bcg.com/germany"
+    },
+    {
+      "title": "Operations & Manufacturing Analytics Experience",
+      "company_evidence": "BCG X seeks expertise in Operations & Optimization, including supply chain, manufacturing, logistics, and workforce planning.",
+      "job_connection": "The role will apply ML, optimization, and simulation techniques to solve complex operational challenges.",
+      "candidate_evidence": "At Fraunhofer IGCV the candidate delivered an anomaly‑detection system for live manufacturing, combined causal analysis with graph neural networks for root‑cause analysis, and built production pipelines for industrial data (Letters 2, 3, 7).",
+      "anchor": "This hands‑on experience solving real manufacturing operational problems aligns directly with BCG’s need for operations‑focused AI scientists.",
+      "source_url": "https://www.bcg.com/germany"
+    },
+    {
+      "title": "Python‑Centric Production Engineering",
+      "company_evidence": "The job listing specifies Python as a required programming language and mentions optimization tools (e.g., Gurobi, OR‑Tools) as a plus.",
+      "job_connection": "Strong Python coding and ability to integrate with optimization libraries are essential for building scalable AI solutions.",
+      "candidate_evidence": "Across the letters the candidate repeatedly cites Python as the primary language for building pipelines, agents, Docker containers, REST APIs, and for using PyTorch in production‑grade systems.",
+      "anchor": "The candidate’s deep Python expertise and production‑grade engineering (Docker, REST, monitoring) satisfy the technical stack expectations of the BCG X role.",
+      "source_url": "https://www.bcg.com/germany"
+    }
+  ]
+}

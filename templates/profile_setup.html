@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Profile Setup</title>
+    <link rel="stylesheet" href="/static/styles.css" />
+</head>
+<body>
+    <div class="layout">
+        <div class="topbar">
+            <div class="brand">Cover Letter AI</div>
+            <div class="nav">
+                <a href="/profile/setup">Profile Setup</a>
+                <a href="/logout">Log out</a>
+            </div>
+        </div>
+
+        <div class="grid">
+            <div class="panel">
+                <div class="eyebrow">Profile setup</div>
+                <h1>Build your professional profile</h1>
+                <p class="subtle">Upload your resume and exactly five previous cover letters so we can understand your experience, evidence, and writing style.</p>
+
+                {% if error %}
+                <div class="error-box">{{ error }}</div>
+                {% endif %}
+
+                <div class="status-row">
+                    {% if status.is_ready %}
+                    <span class="status-pill ok">Profile ready</span>
+                    {% else %}
+                    <span class="status-pill">Resume: {% if status.has_resume %}Uploaded{% else %}Required{% endif %}</span>
+                    <span class="status-pill">Cover letters: {{ status.cover_letter_count }} / 5</span>
+                    {% endif %}
+                </div>
+
+                <div class="upload-box">
+                    <h3>Resume <span class="required-tag">Required</span></h3>
+                    <p class="subtle">Your resume provides the factual foundation for your professional profile, including experience, skills, projects and achievements.</p>
+
+                    {% if resume %}
+                    <div class="file-meta">
+                        <span class="document-name">📄 {{ resume.filename }}</span>
+                        <form method="post" action="/profile/resume/delete">
+                            <input type="hidden" name="resume_id" value="{{ resume.id }}" />
+                            <button type="submit" class="delete-button" aria-label="Delete {{ resume.filename }}" title="Delete file">
+                                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 3h6l1 2h4v2H4V5h4l1-2zm-1 7h2v8H8v-8zm6 0h2v8h-2v-8zM6 7h12l-1 12a2 2 0 0 1-2 2H9a2 2 0 0 1-2-2L6 7z"/></svg>
+                            </button>
+                        </form>
+                    </div>
+                    {% else %}
+                    <p class="subtle">Current resume: No resume uploaded</p>
+                    {% endif %}
+
+                    <form method="post" action="/profile/resume" enctype="multipart/form-data">
+                        <input type="file" name="resume" accept=".pdf,.txt" id="resume-input" />
+                        <div id="resume-file-name" aria-live="polite">No file selected</div>
+                        <button type="submit" class="primary-button">Upload resume</button>
+                    </form>
+                    <script>
+                        const resumeInput = document.getElementById('resume-input');
+                        const resumeFileName = document.getElementById('resume-file-name');
+
+                        resumeInput.addEventListener('change', function () {
+                            const file = this.files && this.files[0];
+                            resumeFileName.textContent = file ? 'Selected: ' + file.name : 'No file selected';
+                        });
+                    </script>
+                </div>
+
+                <div class="upload-box">
+                    <h3>Previous Cover Letters <span class="required-tag">Required: 5 files</span></h3>
+                    <p class="subtle">Your previous cover letters help us understand your natural writing style and how you present your experience. Uploading more samples helps us identify recurring writing patterns more accurately.</p>
+                    <p class="count-text">{{ status.cover_letter_count }} of 5 uploaded</p>
+                    {% if cover_letters %}
+                    <ul class="document-list">
+                        {% for letter in cover_letters %}
+                        <li class="document-item">
+                            <span class="document-name">📄 {{ letter.filename }}</span>
+                            <form method="post" action="/profile/cover-letters/delete">
+                                <input type="hidden" name="cover_letter_id" value="{{ letter.id }}" />
+                                <button type="submit" class="delete-button" aria-label="Delete {{ letter.filename }}" title="Delete file">
+                                    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 3h6l1 2h4v2H4V5h4l1-2zm-1 7h2v8H8v-8zm6 0h2v8h-2v-8zM6 7h12l-1 12a2 2 0 0 1-2 2H9a2 2 0 0 1-2-2L6 7z"/></svg>
+                                </button>
+                            </form>
+                        </li>
+                        {% endfor %}
+                    </ul>
+                    {% else %}
+                    <p class="subtle">No cover letters uploaded yet.</p>
+                    {% endif %}
+                    {% if status.cover_letter_count < 5 %}
+                    <div class="action-row">
+                        <form method="post" action="/profile/cover-letters" enctype="multipart/form-data">
+                            <input type="file" name="files" accept=".pdf,.txt" multiple />
+                            <button type="submit" class="primary-button">+ Add more cover letters</button>
+                        </form>
+                    </div>
+                    {% else %}
+                    <p class="subtle">5 of 5 uploaded</p>
+                    {% endif %}
+                </div>
+
+                <div class="upload-box">
+                    <h3>Build profile</h3>
+                    <p class="subtle">We will read your documents, understand your experience, learn your writing style, and build a professional profile.</p>
+                    <form method="post" action="/profile/build">
+                        <button type="submit" class="primary-button" {% if not status.can_build %}disabled{% endif %}>Build my profile</button>
+                    </form>
+                    {% if not status.can_build %}
+                    <p class="helper-text">Upload a resume and exactly 5 previous cover letters to enable profile building.</p>
+                    {% endif %}
+                </div>
+            </div>
+
+            <div class="panel">
+                <div class="eyebrow">What we build</div>
+                <h2>Three grounded outputs</h2>
+                <div class="grid-2">
+                    <div class="card">
+                        <h3>Candidate Evidence</h3>
+                        <ul>
+                            <li>Experience and responsibilities</li>
+                            <li>Skills and achievements</li>
+                            <li>Tools, projects, and results</li>
+                        </ul>
+                    </div>
+                    <div class="card">
+                        <h3>Writing Style</h3>
+                        <ul>
+                            <li>Tone and sentence patterns</li>
+                            <li>Vocabulary and structure</li>
+                            <li>Professional voice</li>
+                        </ul>
+                    </div>
+                    <div class="card">
+                        <h3>Professional Profile</h3>
+                        <ul>
+                            <li>Core strengths</li>
+                            <li>Capabilities and themes</li>
+                            <li>Professional summary</li>
+                        </ul>
+                    </div>
+                    <div class="card">
+                        <h3>Processing states</h3>
+                        <ul>
+                            <li>Reading your documents...</li>
+                            <li>Understanding your experience...</li>
+                            <li>Learning your writing style...</li>
+                            <li>Building your professional profile...</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</body>
+</html>
