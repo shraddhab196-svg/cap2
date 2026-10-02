@@ -17,15 +17,16 @@ def test_validate_cover_letters_accepts_valid_uploads():
 
 def test_validate_cover_letters_rejects_invalid_counts():
     zero = []
-    single = [type("File", (), {"filename": "letter1.txt"})()]
     too_many = [type("File", (), {"filename": f"letter{i}.txt"})() for i in range(1, 7)]
 
-    for files in (zero, single, too_many):
+    for files in (zero, too_many):
         try:
             validate_cover_letters(files)
             raise AssertionError("Expected invalid cover-letter count to be rejected.")
         except ValueError:
             pass
+
+    assert validate_cover_letters([type("File", (), {"filename": "letter1.txt"})()], min_count=1) == ["letter1.txt"]
 
 
 def test_build_candidate_evidence_extracts_grounded_facts():
@@ -47,20 +48,17 @@ def test_build_candidate_evidence_extracts_grounded_facts():
     assert evidence["grounding"] == "Grounded in the uploaded resume and previous cover letters only."
 
 
-def test_build_profile_bundle_requires_resume_and_two_letters():
-    try:
-        build_profile_bundle("", ["letter 1", "letter 2"])
-        raise AssertionError("Resume was required.")
-    except ValueError:
-        pass
+def test_build_profile_bundle_requires_resume_and_one_to_five_letters():
+    resume = "Senior software engineer with Python and AWS experience."
+    for invalid_resume, letters in (("", ["letter 1"]), (resume, []), (resume, [f"letter {i}" for i in range(1, 7)])):
+        try:
+            build_profile_bundle(invalid_resume, letters)
+            raise AssertionError(f"Expected rejection for resume={bool(invalid_resume)} and {len(letters)} letters.")
+        except ValueError:
+            pass
 
-    try:
-        build_profile_bundle("resume text", ["single letter"])
-        raise AssertionError("Two cover letters were required.")
-    except ValueError:
-        pass
-
-    bundle = build_profile_bundle("Senior software engineer with Python and AWS experience.", ["I led a Python migration and improved deployment speed by 40%.", "I built SQL-based reporting with strong stakeholder communication and clear delivery."])
-    assert "candidate_evidence" in bundle
-    assert "writing_style_profile" in bundle
-    assert "professional_profile" in bundle
+    for letters in (["I led a Python migration and improved deployment speed by 40%."], [f"I built system {i} with Python." for i in range(1, 6)]):
+        bundle = build_profile_bundle(resume, letters)
+        assert "candidate_evidence" in bundle
+        assert "writing_style_profile" in bundle
+        assert "professional_profile" in bundle

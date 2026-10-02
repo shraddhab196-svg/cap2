@@ -12,6 +12,11 @@ from typing import Any
 from dotenv import load_dotenv
 from groq import APIConnectionError, APIStatusError, Groq, RateLimitError
 
+try:
+    from src import writing_framework
+except ImportError:  # running as a script from inside src/
+    import writing_framework
+
 logger = logging.getLogger(__name__)
 
 
@@ -367,11 +372,29 @@ def build_cover_letter_prompt(
 
     evidence_sections: list[str] = []
     for name, text in previous_letters[:3]:
-        snippet = trim_evidence_snippet(text, limit=700)
+        snippet = trim_evidence_snippet(text, limit=550)  # reduced from 700 to stay under Groq's 7000 input-token limit
         evidence_sections.append(f"--- {name} ---\n{snippet}\n")
 
     style_summary = json.dumps(style_profile, ensure_ascii=False, separators=(",", ":"))
     plan_summary = json.dumps(plan, ensure_ascii=False, separators=(",", ":"))
+    # writing framework: overrides the default length target and adds its requirements block.
+    length_line = writing_framework.length_instruction() or "Target approximately 350-500 words."
+    framework_section = writing_framework.generation_section()
+    # Quality lines the framework already covers; kept only when it is disabled to stay under the input-token limit.
+    legacy_quality_lines = "" if framework_section else (
+        "- Do not invent skills, projects, technologies, accomplishments, or personal motivations.\n"
+        "- Use the evidence in the candidate's prior letters as the source of truth.\n"
+        "- The opening must be an evidence-backed hook, not a generic statement of interest.\n"
+        "- The letter must sound like a real professional wrote it, not a polished corporate summary.\n"
+        "- Be natural, direct, and persuasive without sounding overly AI-generated.\n"
+        "- Do not use generic enthusiasm or corporate buzzwords.\n"
+        "- Keep the paragraph flow coherent and human.\n"
+        "- If a gap is relevant, keep it brief and strength-oriented: Gap → transferable evidence → learning ability → manageable.\n"
+    )
+    legacy_closing_lines = "" if framework_section else (
+        "- The hook, personal connection, role relevance, and gap handling must all feel real and grounded in the evidence.\n"
+        "- Do not artificially over-polish or repeat generic statements.\n"
+    )
 
     return f"""
 You are writing the final cover letter in the candidate's voice for a specific company and role.
@@ -383,19 +406,11 @@ You must follow the cover-letter plan exactly, but write the final prose natural
 Hard requirements:
 - Start with: Dear Hiring Manager,
 - Use the plan as the structure for the argument, but do not copy the plan verbatim.
-- The opening must be an evidence-backed hook, not a generic statement of interest.
-- The letter must sound like a real professional wrote it, not a polished corporate summary.
-- It must feel specific to BCG X and the actual role.
-- Be natural, direct, and persuasive without sounding overly AI-generated.
+- It must feel specific to the actual company (identified by the Company URL and the selected anchor's company evidence below) and the actual role.
 - Use the selected anchor as a narrative thread, not a keyword list.
 - Do not start with “I am applying for…”, “I want to be direct…”, “I am excited to apply…”, “With my extensive experience…”, or any formulaic opening.
-- Do not use generic enthusiasm or corporate buzzwords.
-- Keep the paragraph flow coherent and human.
-- Target approximately 350-500 words.
-- Do not invent skills, projects, technologies, accomplishments, or personal motivations.
-- Use the evidence in the candidate's prior letters as the source of truth.
-- If a gap is relevant, keep it brief and strength-oriented: Gap → transferable evidence → learning ability → manageable.
-- The final closing should be concise and reinforce the strongest evidence-based fit.
+- {length_line}
+{legacy_quality_lines}- The final closing should be concise and reinforce the strongest evidence-based fit.
 - Preserve Resham's established voice as described in the style profile.
 - Do not mention that you are following a plan or using a style profile.
 
@@ -425,8 +440,8 @@ Return valid JSON with this exact shape:
 Important:
 - The output must be valid JSON only.
 - The letter must be one coherent document, not a bullet list.
-- The hook, personal connection, role relevance, and gap handling must all feel real and grounded in the evidence.
-- Do not artificially over-polish or repeat generic statements.
+{legacy_closing_lines}
+{framework_section}
 """.strip()
 
 
@@ -497,7 +512,7 @@ Return ONLY valid JSON in this exact shape:
     }
 
 
-def validate_generated_letter(letter: str, selected_anchors: list[dict[str, Any]], job_description: str) -> None:
+def validate_generated_letter(letter: str, selected_anchors: list[dict[str, Any]], job_description: str, *, min_words: int = 200) -> None:
     """Perform basic validation before accepting the generated cover letter."""
     if not letter or not letter.strip():
         raise ValueError("Generated cover letter is empty.")
@@ -515,7 +530,7 @@ def validate_generated_letter(letter: str, selected_anchors: list[dict[str, Any]
     if any(token in lowered for token in placeholders):
         raise ValueError("Generated cover letter contains obvious placeholders or missing values.")
 
-    if len(letter.split()) < 200:
+    if len(letter.split()) < min_words:
         raise ValueError("Generated cover letter is too short to be a credible application letter.")
 
     if "resham" not in lowered and "joshi" not in lowered:
@@ -574,10 +589,86 @@ def is_effectively_unchanged(current_letter: str, revised_letter: str) -> bool:
     if not current_body or not revised_body:
         return True
 
-    if current_body[0] == revised_body[0]:
-        return True
-
+    # Feedback may target only the middle or closing paragraph, so an identical opening alone is not "unchanged".
     return False
+
+
+NUMBER_WORDS = {"one": 1, "two": 2, "three": 3, "four": 4, "five": 5, "six": 6, "seven": 7, "eight": 8, "nine": 9, "ten": 10}
+SIGN_OFF_PATTERN = re.compile(
+    r"^(sincerely|yours sincerely|yours faithfully|yours truly|best regards|kind regards|warm regards|regards|best|respectfully|thank you|thanks|with gratitude)\s*[,.!]?\s*$",
+    re.IGNORECASE,
+)
+
+
+def extract_feedback_constraints(user_feedback: str, feedback_history: list[str] | None = None) -> dict[str, int | None]:
+    """Extract explicit word/paragraph counts, preferring the latest feedback and then the most recent earlier feedback."""
+    constraints: dict[str, int | None] = {"words": None, "paragraphs": None}
+    for text in [user_feedback, *reversed(feedback_history or [])]:
+        lowered = (text or "").lower()
+        if constraints["words"] is None:
+            match = re.search(r"(\d[\d,]*)\s*-?\s*words?\b", lowered)
+            if match and int(match.group(1).replace(",", "")) > 0:
+                constraints["words"] = int(match.group(1).replace(",", ""))
+        if constraints["paragraphs"] is None:
+            match = re.search(r"\b(\d+|" + "|".join(NUMBER_WORDS) + r")\s*-?\s*paragraphs?\b", lowered)
+            if match:
+                token = match.group(1)
+                value = int(token) if token.isdigit() else NUMBER_WORDS[token]
+                if value > 0:
+                    constraints["paragraphs"] = value
+    return constraints
+
+
+def count_body_paragraphs(letter: str) -> int:
+    """Count blank-line-separated paragraphs, excluding the greeting and the sign-off."""
+    blocks = [block.strip() for block in re.split(r"\n\s*\n", letter.strip()) if block.strip()]
+
+    if blocks and blocks[0].lower().startswith("dear"):
+        rest = "\n".join(blocks[0].splitlines()[1:]).strip()
+        blocks = ([rest] if rest else []) + blocks[1:]
+
+    while blocks:
+        lines = blocks[-1].splitlines()
+        cut = next((index for index, line in enumerate(lines) if SIGN_OFF_PATTERN.match(line.strip())), None)
+        if cut is not None:
+            rest = "\n".join(lines[:cut]).strip()
+            blocks = blocks[:-1] + ([rest] if rest else [])
+            break
+        # A bare name/signature line such as "Resham Joshi" after a separate sign-off block.
+        if len(blocks[-1].split()) <= 4 and not blocks[-1].endswith((".", "!", "?")):
+            blocks = blocks[:-1]
+            continue
+        break
+
+    return len(blocks)
+
+
+def check_feedback_constraints(letter: str, constraints: dict[str, int | None]) -> str | None:
+    """Return a retry instruction describing unmet explicit constraints, or None when all are satisfied."""
+    problems: list[str] = []
+
+    requested_words = constraints.get("words")
+    if requested_words:
+        actual_words = len(letter.split())
+        tolerance = max(1, round(requested_words * 0.10))
+        if abs(actual_words - requested_words) > tolerance:
+            problems.append(
+                f"The previous draft had {actual_words} words. The user requires approximately {requested_words} words "
+                f"(between {requested_words - tolerance} and {requested_words + tolerance})."
+            )
+
+    requested_paragraphs = constraints.get("paragraphs")
+    if requested_paragraphs:
+        actual_paragraphs = count_body_paragraphs(letter)
+        if actual_paragraphs != requested_paragraphs:
+            problems.append(
+                f"The previous draft had {actual_paragraphs} body paragraphs. The user requires exactly {requested_paragraphs} "
+                "body paragraphs, not counting the greeting and the sign-off."
+            )
+
+    if not problems:
+        return None
+    return " ".join(problems) + " Rewrite the full letter to satisfy these constraints."
 
 
 def build_cover_letter_revision_prompt(
@@ -590,6 +681,8 @@ def build_cover_letter_revision_prompt(
     company_url: str,
     *,
     retry_context: str = "",
+    feedback_history: list[str] | None = None,
+    constraints: dict[str, int | None] | None = None,
 ) -> str:
     """Create a targeted revision prompt for the current cover letter."""
     anchor_details: list[str] = []
@@ -615,20 +708,47 @@ def build_cover_letter_revision_prompt(
     if retry_context:
         retry_prefix = f"\nIMPORTANT: {retry_context}\n"
 
+    history_section = ""
+    if feedback_history:
+        history_lines = "\n".join(f"{index}. {item}" for index, item in enumerate(feedback_history, start=1))
+        history_section = (
+            "\nEARLIER FEEDBACK (lower priority; applied in earlier revisions; keep honoring it only where it does not conflict with the LATEST FEEDBACK):\n"
+            f"{history_lines}\n"
+        )
+
+    requirement_lines: list[str] = []
+    if constraints and constraints.get("words"):
+        requirement_lines.append(f"- The whole letter must be approximately {constraints['words']} words (within about 10%).")
+    if constraints and constraints.get("paragraphs"):
+        requirement_lines.append(
+            f"- The letter must have exactly {constraints['paragraphs']} body paragraphs separated by blank lines "
+            "(the greeting line and the sign-off are not counted as paragraphs)."
+        )
+    framework_section = writing_framework.revision_section()  # writing framework
+    requirements_section = ""
+    if requirement_lines:
+        requirements_section = "\nHARD REQUIREMENTS FROM THE USER (mandatory for the whole letter):\n" + "\n".join(requirement_lines) + "\n"
+
     return f"""
-Revise the CURRENT COVER LETTER according to the USER FEEDBACK.
+Revise the CURRENT COVER LETTER according to the LATEST FEEDBACK.
 
 The user's feedback is an explicit editing instruction and MUST be applied.
 The model must not return the current letter unchanged.
 The feedback must be addressed in the relevant section of the letter, not ignored.
 Identify what part of the letter the feedback refers to and rewrite that part meaningfully.
+When feedback items conflict, the LATEST FEEDBACK wins over EARLIER FEEDBACK.
+Explicit word-count, paragraph-count, and formatting requests are HARD requirements for the whole letter.
+They override the style profile's paragraph structure, any earlier length target, and the instruction to make only local edits.
+Restructure or rewrite the entire letter as necessary to satisfy them.
 
 {retry_prefix}
 CURRENT COVER LETTER:
 {current_letter}
 
-USER FEEDBACK:
+{history_section}
+LATEST FEEDBACK (highest priority):
 {user_feedback}
+{requirements_section}
 
 JOB DESCRIPTION:
 {job_description}
@@ -644,11 +764,11 @@ STYLE PROFILE:
 
 Instructions:
 - Apply the user's feedback directly and substantively.
-- Preserve factual accuracy and candidate evidence.
-- Preserve the candidate's established writing style.
+- Preserve factual accuracy and candidate evidence unless the user's feedback asks for a change.
+- Preserve the candidate's established writing style (tone and voice); explicit length, paragraph-count, or formatting requests override its paragraph structure.
 - Preserve valid company and role references.
 - Do not invent experience, skills, metrics, or company facts.
-- Do not make unrelated changes unless required for coherence.
+- Do not make unrelated changes unless required for coherence or to satisfy an explicit length, paragraph-count, or formatting requirement.
 - Do not return the current letter unchanged.
 - If the user asks for something unsupported, keep the letter grounded in the actual evidence rather than inventing claims.
 - Make the writing personal, reflective, and human when appropriate. You may transform documented candidate experiences into natural reflections, lessons, motivations, and narrative connections. However, do not invent specific events, memories, failures, conversations, feelings, motivations, achievements, or experiences that are not supported by the candidate evidence.
@@ -658,6 +778,8 @@ Instructions:
   {{
     "cover_letter": "The revised cover letter text here..."
   }}
+
+{framework_section}
 """.strip()
 
 
@@ -669,13 +791,21 @@ def generate_cover_letter_revision(
     style_profile: dict[str, Any],
     previous_letters: list[tuple[str, str]],
     company_url: str,
+    feedback_history: list[str] | None = None,
 ) -> str:
     """Generate a revised version of the current cover letter using the user's feedback."""
     load_environment()
     client, model_name = get_groq_client()
 
-    max_attempts = 2
+    constraints = writing_framework.cap_feedback_constraints(extract_feedback_constraints(user_feedback, feedback_history))
+    requested_words = constraints["words"]
+    # Let an explicitly requested short letter pass the generic 200-word floor, and leave room for long requests.
+    min_words = min(200, int(requested_words * 0.9)) if requested_words else 200
+    max_tokens = max(1200, requested_words * 2 + 300) if requested_words else 1200
+
+    max_attempts = 3
     retry_message = "The previous revision did not apply the user's feedback. Revise the letter again and make a substantive change specifically addressing the user's feedback. Do not return the previous version unchanged."
+    retry_context = ""
 
     for attempt in range(1, max_attempts + 1):
         prompt = build_cover_letter_revision_prompt(
@@ -686,7 +816,9 @@ def generate_cover_letter_revision(
             style_profile=style_profile,
             previous_letters=previous_letters,
             company_url=company_url,
-            retry_context=(retry_message if attempt > 1 else ""),
+            retry_context=retry_context,
+            feedback_history=feedback_history,
+            constraints=constraints,
         )
 
         try:
@@ -696,7 +828,7 @@ def generate_cover_letter_revision(
                 "You revise a cover letter based on direct user feedback while preserving the candidate's factual grounding and writing style. Apply the requested changes and do not return the current letter unchanged.",
                 prompt,
                 temperature=0.2,
-                max_tokens=1200,
+                max_tokens=max_tokens,
             )
         except (APIConnectionError, APIStatusError, RateLimitError) as exc:
             raise RuntimeError(f"Groq API request failed while revising the letter: {exc}") from exc
@@ -721,13 +853,27 @@ def generate_cover_letter_revision(
             raise ValueError("Groq response did not include a cover_letter field for the revision.")
 
         revised_letter = str(payload["cover_letter"]).strip()
-        validate_generated_letter(revised_letter, selected_anchors, job_description)
+        validate_generated_letter(revised_letter, selected_anchors, job_description, min_words=min_words)
 
         if is_effectively_unchanged(current_letter, revised_letter):
             if attempt < max_attempts:
                 logger.warning("Revision rejected as unchanged; retrying with stronger correction prompt.")
+                retry_context = retry_message
                 continue
             raise ValueError("Revision was rejected because the model returned an unchanged letter after the allowed retry attempts.")
+
+        constraint_problem = check_feedback_constraints(revised_letter, constraints)
+        framework_problem = writing_framework.word_limit_problem(revised_letter)  # writing framework
+        if constraint_problem or framework_problem:
+            if attempt < max_attempts:
+                retry_context = " ".join(problem for problem in (constraint_problem, framework_problem) if problem)
+                logger.warning("Revision rejected: %s", retry_context)
+                continue
+            if constraint_problem:
+                raise ValueError(
+                    f"Revision was not saved because it did not meet your explicit requirements after {max_attempts} attempts. {constraint_problem}"
+                )
+            raise ValueError(writing_framework.GENERIC_FAILURE_MESSAGE)
 
         return revised_letter
 
@@ -751,34 +897,45 @@ def generate_cover_letter(
     load_environment()
     client, model_name = get_groq_client()
     plan = generate_cover_letter_plan(job_description, selected_anchors, style_profile, previous_letters, company_url)
-    prompt = build_cover_letter_prompt(job_description, selected_anchors, style_profile, previous_letters, company_url, plan)
+    base_prompt = build_cover_letter_prompt(job_description, selected_anchors, style_profile, previous_letters, company_url, plan)
+    prompt = base_prompt
+    max_attempts = 3
 
-    try:
-        raw_content = call_groq_json(
-            client,
-            model_name,
-            "You write a tailored cover letter based on the candidate's evidence, the role, the selected anchor, and the structured cover-letter plan. Return valid JSON with a cover_letter string.",
-            prompt,
-            temperature=0.25,
-            max_tokens=1200,
-        )
-    except (APIConnectionError, APIStatusError, RateLimitError) as exc:
-        raise RuntimeError(f"Groq API request failed: {exc}") from exc
-    except Exception as exc:
-        raise RuntimeError(f"Unexpected Groq error: {exc}") from exc
+    for attempt in range(1, max_attempts + 1):
+        try:
+            raw_content = call_groq_json(
+                client,
+                model_name,
+                "You write a tailored cover letter based on the candidate's evidence, the role, the selected anchor, and the structured cover-letter plan. Return valid JSON with a cover_letter string.",
+                prompt,
+                temperature=0.25,
+                max_tokens=1200,
+            )
+        except (APIConnectionError, APIStatusError, RateLimitError) as exc:
+            raise RuntimeError(f"Groq API request failed: {exc}") from exc
+        except Exception as exc:
+            raise RuntimeError(f"Unexpected Groq error: {exc}") from exc
 
-    try:
-        payload = json.loads(raw_content)
-    except json.JSONDecodeError as exc:
-        logger.error("ERROR: Groq returned invalid JSON content.\nRAW GROQ RESPONSE:\n%s", raw_content)
-        raise ValueError("Groq returned invalid JSON content.") from exc
+        try:
+            payload = json.loads(raw_content)
+        except json.JSONDecodeError as exc:
+            logger.error("ERROR: Groq returned invalid JSON content.\nRAW GROQ RESPONSE:\n%s", raw_content)
+            raise ValueError("Groq returned invalid JSON content.") from exc
 
-    if not isinstance(payload, dict) or "cover_letter" not in payload:
-        raise ValueError("Groq response did not include a cover_letter field.")
+        if not isinstance(payload, dict) or "cover_letter" not in payload:
+            raise ValueError("Groq response did not include a cover_letter field.")
 
-    letter = str(payload["cover_letter"]).strip()
-    validate_generated_letter(letter, selected_anchors, job_description)
-    return letter
+        letter = str(payload["cover_letter"]).strip()
+        validate_generated_letter(letter, selected_anchors, job_description)
+
+        # writing framework: the complete letter must stay within the word limit.
+        framework_problem = writing_framework.word_limit_problem(letter)
+        if not framework_problem:
+            return letter
+        logger.warning("Generated letter rejected by the writing framework: %s", framework_problem)
+        prompt = f"{base_prompt}\n\nIMPORTANT: {framework_problem}"
+
+    raise ValueError(writing_framework.GENERIC_FAILURE_MESSAGE)
 
 
 def save_cover_letter(path: Path, letter: str) -> None:

@@ -1,0 +1,25 @@
+{# Shared header for every authenticated page: brand + initials avatar menu (Profile Setup, Log out). #}
+{% set identity = ((user.name or user.email) if user else '') or 'User' %}
+{% set name_parts = identity.split('@')[0].replace('.', ' ').replace('_', ' ').replace('-', ' ').replace('+', ' ').split() %}
+{% set initials = ((name_parts[0][0] ~ (name_parts[1][0] if name_parts|length > 1 else '')) if name_parts else 'U')|upper %}
+        <header class="setup-header">
+            <div class="brand">Cover Letter AI</div>
+            <details class="account-menu">
+                <summary aria-label="Account menu">
+                    <span class="avatar">{{ initials }}</span>
+                    <span class="caret" aria-hidden="true">▾</span>
+                </summary>
+                <div class="account-dropdown">
+                    <a href="/profile/setup">Profile Setup</a>
+                    <a href="/logout">Log out</a>
+                </div>
+            </details>
+        </header>
+        <script>
+            document.addEventListener('click', function (event) {
+                const menu = document.querySelector('.account-menu');
+                if (menu && menu.open && !menu.contains(event.target)) {
+                    menu.open = false;
+                }
+            });
+        </script>

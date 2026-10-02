@@ -1,19 +1,26 @@
 :root {
-  --bg: #F7F3EE;
-  --panel: #FFFDF9;
-  --card: #FFFDF9;
+  --bg: #f7f3ee;
+  --panel: #fffdf9;
+  --card: #fbf7f3;
   --text: #252321;
-  --muted: #756F69;
-  --line: #DED6CE;
-  --brand: #B33F5C;
-  --brand-soft: #E8C4C9;
-  --deep: #7A3042;
-  --success: #4C5D4D;
-  --danger: #A03E4B;
-  --shadow: 0 14px 28px rgba(58, 37, 34, 0.08);
+  --muted: #756f69;
+  --line: #ded6ce;
+
+  --brand: #b33f5c;
+  --brand-soft: #e8c4c9;
+  --deep: #7a3042;
+
+  --success: #4f6f61;
+  --danger: #7a3042;
+  --danger-soft: #f3dfe3;
+
+  --shadow: 0 12px 30px rgba(37, 35, 33, 0.06);
 }
 
-* { box-sizing: border-box; }
+* {
+  box-sizing: border-box;
+}
+
 body {
   margin: 0;
   font-family: Inter, Segoe UI, Arial, sans-serif;
@@ -29,7 +36,8 @@ body {
   padding: 32px 16px;
 }
 
-.auth-card, .panel {
+.auth-card,
+.panel {
   background: var(--panel);
   border: 1px solid var(--line);
   border-radius: 16px;
@@ -49,7 +57,9 @@ body {
   color: var(--deep);
 }
 
-h1, h2, h3 {
+h1,
+h2,
+h3 {
   margin: 16px 0 8px;
   color: var(--text);
 }
@@ -68,14 +78,17 @@ label {
   margin-bottom: 8px;
 }
 
-input, button, .btn, input[type="file"] {
+input,
+button,
+.btn,
+input[type="file"] {
   width: 100%;
   border-radius: 10px;
   border: 1px solid var(--line);
   padding: 12px 14px;
   font-size: 15px;
   color: var(--text);
-  background: #fff;
+  background: var(--panel);
 }
 
 input:focus {
@@ -83,9 +96,10 @@ input:focus {
   border-color: var(--brand);
 }
 
-button, .btn {
+button,
+.btn {
   background: var(--brand);
-  color: #fff;
+  color: #fffdf9;
   border: none;
   cursor: pointer;
   font-weight: 600;
@@ -93,7 +107,8 @@ button, .btn {
   transition: background-color 0.2s ease, opacity 0.2s ease;
 }
 
-button:hover, .btn:hover {
+button:hover,
+.btn:hover {
   background: var(--deep);
   opacity: 1;
 }
@@ -123,7 +138,8 @@ button:hover, .btn:hover {
   margin-left: 8px;
 }
 
-.count-text, .helper-text {
+.count-text,
+.helper-text {
   color: var(--muted);
   font-size: 14px;
   margin: 8px 0 0;
@@ -135,9 +151,9 @@ button[disabled] {
 }
 
 .error-box {
-  background: #fef2f2;
+  background: var(--danger-soft);
   color: var(--danger);
-  border: 1px solid #fecaca;
+  border: 1px solid var(--brand-soft);
   border-radius: 10px;
   padding: 12px 14px;
   margin-bottom: 18px;
@@ -194,7 +210,7 @@ button[disabled] {
   padding: 8px 12px;
   border-radius: 999px;
   background: var(--brand-soft);
-  color: var(--brand);
+  color: var(--deep);
   font-size: 13px;
   font-weight: 600;
 }
@@ -205,6 +221,33 @@ button[disabled] {
   border-radius: 14px;
   padding: 18px;
   margin-top: 16px;
+}
+
+.angle-option {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0;
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.angle-radio {
+  width: 16px;
+  min-width: 16px;
+  height: 16px;
+  margin: 0;
+  padding: 0;
+  border-radius: 50%;
+  accent-color: var(--brand);
+  background: transparent;
+  border: 1px solid var(--line);
+  flex-shrink: 0;
+}
+
+.angle-title {
+  line-height: 1.4;
 }
 
 .file-meta {
@@ -234,7 +277,7 @@ button[disabled] {
   padding: 12px 14px;
   border: 1px solid var(--line);
   border-radius: 10px;
-  background: rgba(255, 255, 255, 0.4);
+  background: rgba(255, 253, 249, 0.7);
   margin-bottom: 10px;
 }
 
@@ -246,29 +289,37 @@ button[disabled] {
   font-weight: 500;
 }
 
+/* Small icon-only delete button */
 .delete-button {
-  width: auto;
-  min-width: 40px;
-  height: 40px;
+  width: 32px;
+  min-width: 32px;
+  max-width: 32px;
+  height: 32px;
+  min-height: 32px;
+  max-height: 32px;
   margin: 0;
-  padding: 8px;
+  padding: 0;
   background: transparent;
   border: 1px solid var(--line);
   color: var(--deep);
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  border-radius: 10px;
+  border-radius: 6px;
+  line-height: 1;
+  flex-shrink: 0;
 }
 
 .delete-button:hover {
-  background: rgba(122, 48, 66, 0.08);
+  background: var(--danger-soft);
   border-color: var(--deep);
+  color: var(--deep);
+  opacity: 1;
 }
 
 .delete-button svg {
-  width: 18px;
-  height: 18px;
+  width: 16px;
+  height: 16px;
   fill: currentColor;
 }
 
@@ -280,7 +331,8 @@ button[disabled] {
   margin-top: 14px;
 }
 
-.primary-button, .secondary-button {
+.primary-button,
+.secondary-button {
   width: auto;
   min-width: 0;
   margin-top: 0;
@@ -312,7 +364,7 @@ button[disabled] {
 }
 
 .card {
-  background: #f8fafc;
+  background: var(--card);
   border: 1px solid var(--line);
   border-radius: 12px;
   padding: 18px;
@@ -330,6 +382,405 @@ ul {
 }
 
 @media (max-width: 800px) {
-  .grid, .grid-2 { grid-template-columns: 1fr; }
-  .topbar { flex-direction: column; gap: 10px; }
+  .grid,
+  .grid-2 {
+    grid-template-columns: 1fr;
+  }
+
+  .topbar {
+    flex-direction: column;
+    gap: 10px;
+  }
+}
+
+/* ---------- Job Input page (also used by the revision feedback field) ---------- */
+
+.job-input-form textarea,
+.feedback-form textarea {
+  display: block;
+  width: 100%;
+  height: 250px;
+  min-height: 220px;
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--panel);
+  color: var(--text);
+  font: inherit;
+  font-size: 15px;
+  line-height: 1.55;
+  resize: vertical;
+  overflow-y: auto;
+}
+
+.job-input-form textarea:focus,
+.feedback-form textarea:focus {
+  outline: 2px solid rgba(179, 63, 92, 0.18);
+  border-color: var(--brand);
+}
+
+.job-input-form textarea::placeholder,
+.feedback-form textarea::placeholder {
+  color: var(--muted);
+}
+
+.feedback-form textarea {
+  height: 140px;
+  min-height: 120px;
+}
+
+/* ---------- Profile Setup page ---------- */
+
+.setup-layout {
+  margin-top: 16px;
+}
+
+/* Header: brand left, avatar menu right */
+.setup-header {
+  display: flex;
+  flex-direction: row;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 0 28px;
+}
+
+.account-menu {
+  position: relative;
+}
+
+.account-menu summary {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  cursor: pointer;
+  list-style: none;
+  border-radius: 999px;
+  padding: 2px;
+}
+
+.account-menu summary::-webkit-details-marker {
+  display: none;
+}
+
+.account-menu summary::marker {
+  content: "";
+}
+
+.account-menu summary:focus-visible {
+  outline: 2px solid rgba(179, 63, 92, 0.35);
+  outline-offset: 2px;
+}
+
+.avatar {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: var(--brand-soft);
+  border: 1px solid rgba(122, 48, 66, 0.18);
+  color: var(--deep);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+  font-weight: 700;
+  transition: box-shadow 0.15s ease;
+}
+
+/* Hover/open ring uses box-shadow so nothing shifts layout. */
+.account-menu summary:hover .avatar,
+.account-menu[open] .avatar {
+  box-shadow: 0 0 0 3px rgba(179, 63, 92, 0.14);
+}
+
+.caret {
+  color: var(--muted);
+  font-size: 11px;
+  transition: transform 0.15s ease;
+}
+
+.account-menu[open] .caret {
+  transform: rotate(180deg);
+}
+
+.account-dropdown {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 8px);
+  min-width: 140px;
+  padding: 6px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  box-shadow: var(--shadow);
+  z-index: 10;
+}
+
+.account-dropdown a {
+  display: block;
+  padding: 8px 10px;
+  border-radius: 6px;
+  color: var(--text);
+  font-size: 14px;
+  text-decoration: none;
+}
+
+.account-dropdown a:hover {
+  background: var(--card);
+}
+
+/* Two columns: main content + compact right sidebar */
+.setup-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 260px;
+  gap: 24px;
+  align-items: start;
+}
+
+.setup-heading h1 {
+  margin: 0 0 4px;
+  font-size: 26px;
+  letter-spacing: -0.01em;
+}
+
+.setup-heading p {
+  margin: 0 0 20px;
+  color: var(--muted);
+}
+
+.setup-card {
+  padding: 22px 24px;
+}
+
+.setup-section + .setup-section {
+  margin-top: 22px;
+  padding-top: 20px;
+  border-top: 1px solid var(--line);
+}
+
+.setup-section-title {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 12px;
+  margin: 0 0 10px;
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.setup-section-meta {
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 500;
+}
+
+/* Compact file rows */
+.file-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 46px;
+  padding: 7px 8px 7px 12px;
+  margin-bottom: 8px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--card);
+}
+
+.file-row form {
+  margin: 0;
+}
+
+.file-icon {
+  flex-shrink: 0;
+  font-size: 15px;
+  color: var(--muted);
+}
+
+.file-name {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.file-status {
+  flex-shrink: 0;
+  color: var(--success);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.file-row .delete-button {
+  width: 28px;
+  min-width: 28px;
+  max-width: 28px;
+  height: 28px;
+  min-height: 28px;
+  max-height: 28px;
+}
+
+/* File picker row: the native input stays functional but visually hidden */
+.picker-row {
+  border-style: dashed;
+  background: var(--panel);
+}
+
+.file-picker {
+  position: relative;
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--muted);
+  cursor: pointer;
+}
+
+.file-picker:hover .file-picker-text {
+  color: var(--deep);
+}
+
+/* Two-class selector so it outranks the global input[type="file"] { width: 100% } rule. */
+.file-picker .file-input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  border: 0;
+}
+
+.file-picker:focus-within {
+  outline: 2px solid rgba(179, 63, 92, 0.25);
+  outline-offset: 4px;
+  border-radius: 6px;
+}
+
+.file-picker-text {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.file-picker-text.selected {
+  color: var(--text);
+}
+
+.small-button {
+  flex-shrink: 0;
+  padding: 6px 14px;
+  font-size: 13px;
+  border-radius: 8px;
+}
+
+/* Primary action */
+.setup-footer {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 12px;
+  margin-top: 20px;
+  padding-top: 18px;
+  border-top: 1px solid var(--line);
+}
+
+.setup-footer form {
+  margin: 0;
+}
+
+.setup-footer .helper-text {
+  flex: 1 1 220px;
+  margin: 0;
+}
+
+.cta-button {
+  padding: 10px 20px;
+}
+
+.cta-button::after {
+  content: " \2192";
+}
+
+/* Right sidebar checklist */
+.progress-card {
+  padding: 18px 20px;
+  position: sticky;
+  top: 24px;
+}
+
+.progress-steps {
+  list-style: none;
+  margin: 12px 0 0;
+  padding: 0;
+}
+
+.progress-step {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 9px 0;
+}
+
+.step-icon {
+  width: 20px;
+  height: 20px;
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin-top: 1px;
+  border-radius: 50%;
+  border: 1.5px solid var(--line);
+  background: var(--panel);
+  color: #fffdf9;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.step-icon.done {
+  background: var(--success);
+  border-color: var(--success);
+}
+
+.step-label {
+  display: block;
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 22px;
+  color: var(--text);
+}
+
+.step-detail {
+  display: block;
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.setup-main {
+  min-width: 0;
+}
+
+@media (max-width: 720px) {
+  .setup-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .progress-card {
+    position: static;
+  }
+
+  .setup-footer form,
+  .setup-footer .cta-button {
+    width: 100%;
+  }
 }

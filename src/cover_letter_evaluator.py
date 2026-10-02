@@ -11,6 +11,11 @@ from typing import Any
 from dotenv import load_dotenv
 from groq import APIConnectionError, APIStatusError, Groq, RateLimitError
 
+try:
+    from src import writing_framework
+except ImportError:  # running as a script from inside src/
+    import writing_framework
+
 logger = logging.getLogger(__name__)
 
 
@@ -225,6 +230,7 @@ def build_evaluation_prompt(
     evidence_blob = "\n\n---\n\n".join(candidate_evidence[:6])
     style_blob = json.dumps(style_profile, ensure_ascii=False, indent=2)
     anchors_blob = "\n\n".join(selected_anchor_details) if selected_anchor_details else "No selected anchors were provided."
+    framework_section = writing_framework.evaluation_section()  # writing framework
 
     return f"""
 You are evaluating a generated cover letter for a specific company and role.
@@ -278,6 +284,8 @@ Important rules:
 - Do not assume a claim is true without support from the evidence.
 - Do not create a ranking or subjective comparison between candidates.
 - Return ONLY valid JSON in the exact shape below.
+
+{framework_section}
 
 JSON shape:
 {{
@@ -387,8 +395,15 @@ def evaluate_cover_letter(
     final_payload["revision_suggestions"] = sorted(set([str(item) for item in final_payload["revision_suggestions"]]))
     final_payload["strengths"] = sorted(set([str(item) for item in final_payload["strengths"]]))
 
+    # writing framework: rule-based checks plus the LLM's framework_issues; absent when the framework is disabled.
+    framework_issues: list[str] = []
+    if writing_framework.FRAMEWORK_ENABLED:
+        llm_framework_issues = payload.get("framework_issues") if isinstance(payload.get("framework_issues"), list) else []
+        framework_issues = sorted(set(writing_framework.deterministic_issues(letter_text) + [str(item) for item in llm_framework_issues]))
+        final_payload["framework_issues"] = framework_issues
+
     average_score = sum(final_payload["scores"].values()) / len(final_payload["scores"]) if final_payload["scores"] else 0
-    if average_score >= 7 and not final_payload["issues"] and not final_payload["unsupported_claims"]:
+    if average_score >= 7 and not final_payload["issues"] and not final_payload["unsupported_claims"] and not framework_issues:
         final_payload["overall_status"] = "PASS"
     else:
         final_payload["overall_status"] = "NEEDS_REVISION"

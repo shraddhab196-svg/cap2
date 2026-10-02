@@ -4,26 +4,20 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Profile Ready</title>
-    <link rel="stylesheet" href="/static/styles.css" />
+    <link rel="stylesheet" href="/static/styles.css?v=ui-3" />
 </head>
 <body>
-    <div class="layout">
-        <div class="topbar">
-            <div class="brand">Cover Letter AI</div>
-            <div class="nav">
-                <a href="/profile/setup">Edit profile</a>
-                <a href="/logout">Log out</a>
-            </div>
-        </div>
+    <div class="layout setup-layout">
+{% include "partials/account_header.html" %}
 
         <div class="panel">
             <div class="eyebrow">Profile ready</div>
             <h1>Your profile is complete</h1>
             <p class="subtle">Your documents have been processed successfully. Now paste the Job Description and Company URL to continue.</p>
 
-            <div class="status-row">
-                <span class="status-pill ok">Ready to use</span>
-            </div>
+            <form method="get" action="/profile/job-input">
+                <button type="submit" class="primary-button">Continue</button>
+            </form>
         </div>
     </div>
 </body>

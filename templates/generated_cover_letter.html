@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Generated Cover Letter</title>
+    <link rel="stylesheet" href="/static/styles.css?v=ui-3" />
+    <style>
+        .generated-letter {
+            white-space: pre-wrap;
+            line-height: 1.7;
+            color: var(--text);
+            background: var(--card);
+            border: 1px solid var(--line);
+            border-radius: 12px;
+            padding: 22px;
+            margin-top: 20px;
+        }
+    </style>
+</head>
+<body>
+    <div class="layout setup-layout">
+{% include "partials/account_header.html" %}
+
+        <div class="panel">
+            <div class="eyebrow">Generated letter</div>
+            <h1>GENERATED COVER LETTER</h1>
+
+            {% if error %}
+            <div class="error-box">{{ error }}</div>
+            {% endif %}
+
+            {% if cover_letter %}
+            {% if is_final %}
+            <p class="count-text">Final version accepted.</p>
+            {% elif revision_number %}
+            <p class="count-text">Revision {{ revision_number }} of {{ max_revisions }}</p>
+            {% else %}
+            <p class="count-text">Original draft ({{ max_revisions }} revisions available)</p>
+            {% endif %}
+
+            <div class="generated-letter">{{ cover_letter }}</div>
+
+            {% if feedback_history %}
+            <div class="upload-box">
+                <p class="subtle"><strong>Feedback applied so far:</strong></p>
+                {% for item in feedback_history %}
+                <p class="subtle">{{ loop.index }}. {{ item }}</p>
+                {% endfor %}
+            </div>
+            {% endif %}
+
+            {% if job_application_id and not is_final %}
+                {% if can_revise %}
+                <form class="feedback-form" method="post" action="/cover-letter/revise">
+                    <input type="hidden" name="job_application_id" value="{{ job_application_id }}" />
+                    <div class="field-group">
+                        <label for="feedback">Your feedback</label>
+                        <textarea id="feedback" name="feedback" rows="5" placeholder="Tell us what you'd like to improve..." required></textarea>
+                    </div>
+                    <div class="action-row">
+                        <button type="submit" class="secondary-button">Revise letter</button>
+                    </div>
+                </form>
+                {% else %}
+                <p class="subtle">The maximum of {{ max_revisions }} revisions has been reached. Please accept the current letter.</p>
+                {% endif %}
+
+                <form method="post" action="/cover-letter/accept">
+                    <input type="hidden" name="job_application_id" value="{{ job_application_id }}" />
+                    <input type="hidden" name="cover_letter_id" value="{{ cover_letter_id }}" />
+                    <div class="action-row">
+                        <button type="submit" class="primary-button">Accept as final</button>
+                    </div>
+                </form>
+            {% endif %}
+            {% endif %}
+        </div>
+    </div>
+</body>
+</html>

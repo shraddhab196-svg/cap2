@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Job Input</title>
+    <link rel="stylesheet" href="/static/styles.css?v=ui-3" />
+</head>
+<body>
+    <div class="layout setup-layout">
+{% include "partials/account_header.html" %}
+
+        <div class="panel">
+            <div class="eyebrow">Job input</div>
+            <h1>Paste the role details</h1>
+            <p class="subtle">Add the current Job Description and Company URL to continue with company research and anchor generation.</p>
+
+            {% if error %}
+            <div class="error-box">{{ error }}</div>
+            {% endif %}
+
+            <form class="job-input-form" method="post" action="/profile/job-input">
+                <div class="field-group">
+                    <label for="job_description">Job Description</label>
+                    <textarea id="job_description" name="job_description" rows="12" placeholder="Paste the full job description here..." required>{{ job_description or '' }}</textarea>
+                </div>
+
+                <div class="field-group">
+                    <label for="company_url">Company URL</label>
+                    <input id="company_url" name="company_url" type="url" value="{{ company_url or '' }}" required />
+                </div>
+
+                <div class="action-row">
+                    <button type="submit" class="primary-button">Continue</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</body>
+</html>

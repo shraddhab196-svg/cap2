@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Company Angles</title>
+    <link rel="stylesheet" href="/static/styles.css?v=ui-3" />
+</head>
+<body>
+    <div class="layout setup-layout">
+{% include "partials/account_header.html" %}
+
+        <div class="panel">
+            <div class="eyebrow">Company research</div>
+            <h1>Generated angles</h1>
+            <p class="subtle">We identified the strongest company/job-specific angles for this opportunity. Choose one to continue.</p>
+
+            {% if error %}
+            <div class="error-box">{{ error }}</div>
+            {% endif %}
+
+            {% if company_url %}
+            <p class="count-text">Company: {{ company_url }}</p>
+            {% endif %}
+
+            <form method="post" action="/company/angles">
+                <input type="hidden" name="job_description" value="{{ job_description }}" />
+                <input type="hidden" name="company_url" value="{{ company_url }}" />
+                <input type="hidden" name="job_application_id" value="{{ job_application_id }}" />
+                {% for anchor in anchors %}
+                <div class="upload-box">
+                    <label class="angle-option">
+                        <input class="angle-radio" type="radio" name="selected_anchor" value="{{ loop.index0 }}" required />
+                        <span class="angle-title">{{ anchor.title }}</span>
+                    </label>
+                    <p class="subtle"><strong>Company evidence:</strong> {{ anchor.company_evidence }}</p>
+                    <p class="subtle"><strong>Job connection:</strong> {{ anchor.job_connection }}</p>
+                    <p class="subtle"><strong>Candidate evidence:</strong> {{ anchor.candidate_evidence }}</p>
+                    <p class="subtle"><strong>Angle:</strong> {{ anchor.anchor }}</p>
+                </div>
+                {% endfor %}
+
+                {% if anchors %}
+                <div class="action-row">
+                    <button type="submit" class="primary-button">Select angle</button>
+                </div>
+                {% endif %}
+            </form>
+        </div>
+    </div>
+</body>
+</html>

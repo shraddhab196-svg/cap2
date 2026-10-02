@@ -1,37 +1,29 @@
 {
-  "company_url": "https://www.bcg.com/germany",
+  "company_url": "https://www.siemens.com",
   "anchors": [
     {
-      "title": "End‑to‑End AI Product Delivery",
-      "company_evidence": "BCG X teams own the full analytics value‑chain end‑to‑end: framing challenges, designing algorithms, implementing, deploying scalable solutions, and enabling AI adoption.",
-      "job_connection": "The role requires designing, building, and deploying AI‑driven solutions that deliver measurable business impact across industries.",
-      "candidate_evidence": "In multiple cover letters (e.g., ERGO, HappyHotelML, JetBrains, PosTunning) the candidate built a production‑grade LLM pipeline and an autonomous agent system, handling data ingestion, model training, Docker‑based deployment, monitoring, and a React dashboard for non‑technical users.",
-      "anchor": "The candidate’s proven ability to take a research prototype (LLM‑guided knowledge‑graph repair or manufacturing anomaly detection) through the full lifecycle to a deployed, monitored product matches BCG X’s end‑to‑end delivery model.",
-      "source_url": "https://www.bcg.com/germany"
+      "title": "Agentic AI for Industrial Automation",
+      "company_evidence": "Siemens has launched the 'Eigen Engineering Agent,' a purpose-built AI for industrial automation that autonomously plans, codes, configures, and validates engineering tasks end-to-end.",
+      "job_connection": "The role requires building and optimizing agentic AI systems and conversational flows, specifically within the Microsoft Power Platform ecosystem to handle complex business logic and automation.",
+      "candidate_evidence": "The candidate has hands-on experience building and optimizing agentic AI systems, specifically working on a production multi-agent LangGraph pipeline at Astroraag.",
+      "anchor": "The candidate's direct experience in designing and debugging multi-agent architectures aligns with Siemens' strategic push to deploy autonomous agents like the Eigen Engineering Agent, providing the foundational logic skills needed to build robust conversational agents in the Power Platform.",
+      "source_url": "https://www.siemens.com"
     },
     {
-      "title": "Client‑Facing Communication & Stakeholder Translation",
-      "company_evidence": "BCG emphasizes a collaborative model where consultants work closely with client teams and must communicate complex analytical concepts to both technical and non‑technical audiences.",
-      "job_connection": "The role expects clear communication of analytical concepts to diverse stakeholders in client‑facing environments.",
-      "candidate_evidence": "Letters 1, 3, and 7 describe building React dashboards and REST APIs that surface AI insights to domain experts, and explicitly mention translating model outputs for non‑technical audiences at Fraunhofer and DFKI.",
-      "anchor": "The candidate’s experience turning model outputs into actionable dashboards and explaining failures to researchers demonstrates the stakeholder communication skill BCG values.",
-      "source_url": "https://www.bcg.com/germany"
+      "title": "Production Reliability and Debugging",
+      "company_evidence": "Siemens emphasizes moving AI beyond suggestions to executing tasks end-to-end, requiring high reliability in industrial settings where failures can have physical consequences.",
+      "job_connection": "The job description explicitly demands a 'strong hands-on mindset' for building, testing, and improving solutions, as well as proactive troubleshooting and optimization of production systems.",
+      "candidate_evidence": "The candidate traced a silent production failure in a LangGraph pipeline to a mismatch between graph.invoke() and graph.stream(), re-architecting the system to reduce debugging time by 60% and improve iteration speed by 40%.",
+      "anchor": "The candidate's demonstrated ability to diagnose and resolve complex, silent production failures in AI pipelines directly supports the job's requirement for proactive troubleshooting and ensuring the reliability of automated business processes.",
+      "source_url": "https://www.siemens.com"
     },
     {
-      "title": "Operations & Manufacturing Analytics Experience",
-      "company_evidence": "BCG X seeks expertise in Operations & Optimization, including supply chain, manufacturing, logistics, and workforce planning.",
-      "job_connection": "The role will apply ML, optimization, and simulation techniques to solve complex operational challenges.",
-      "candidate_evidence": "At Fraunhofer IGCV the candidate delivered an anomaly‑detection system for live manufacturing, combined causal analysis with graph neural networks for root‑cause analysis, and built production pipelines for industrial data (Letters 2, 3, 7).",
-      "anchor": "This hands‑on experience solving real manufacturing operational problems aligns directly with BCG’s need for operations‑focused AI scientists.",
-      "source_url": "https://www.bcg.com/germany"
-    },
-    {
-      "title": "Python‑Centric Production Engineering",
-      "company_evidence": "The job listing specifies Python as a required programming language and mentions optimization tools (e.g., Gurobi, OR‑Tools) as a plus.",
-      "job_connection": "Strong Python coding and ability to integrate with optimization libraries are essential for building scalable AI solutions.",
-      "candidate_evidence": "Across the letters the candidate repeatedly cites Python as the primary language for building pipelines, agents, Docker containers, REST APIs, and for using PyTorch in production‑grade systems.",
-      "anchor": "The candidate’s deep Python expertise and production‑grade engineering (Docker, REST, monitoring) satisfy the technical stack expectations of the BCG X role.",
-      "source_url": "https://www.bcg.com/germany"
+      "title": "Optimization of AI Operational Costs",
+      "company_evidence": "Siemens is scaling Industrial AI across the value chain, including for 600,000+ TIA Portal users, which necessitates efficient and cost-effective AI deployment at scale.",
+      "job_connection": "The role involves translating business requirements into technical solutions, which includes optimizing performance and resource usage for enterprise-grade AI applications.",
+      "candidate_evidence": "The candidate optimized LLM pipelines by implementing prompt engineering, context engineering, and token budgeting, resulting in a 50% reduction in pipeline latency and a 70% reduction in operational cost.",
+      "anchor": "The candidate's proven track record of significantly reducing latency and operational costs through technical optimization aligns with the need to deliver scalable, efficient AI solutions for Siemens' large-scale industrial user base.",
+      "source_url": "https://www.siemens.com"
     }
   ]
 }

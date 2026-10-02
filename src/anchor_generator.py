@@ -10,7 +10,10 @@ from typing import Any
 from dotenv import load_dotenv
 from groq import APIConnectionError, APIStatusError, Groq, RateLimitError
 
-from company_researcher import research_company
+try:
+    from company_researcher import research_company
+except ModuleNotFoundError:  # pragma: no cover - compatibility for app imports
+    from src.company_researcher import research_company
 
 logger = logging.getLogger(__name__)
 
@@ -118,7 +121,7 @@ Examine the candidate's letters for evidence across, where present:
 
 Only include a dimension if there is specific evidence in the candidate's letters and a real connection to the company/job.
 
-Before finalizing, compare the candidate's evidence across all 8 letters and ensure the anchors are distinct.
+Before finalizing, compare the candidate's evidence across all of the letters and ensure the anchors are distinct.
 Do not rely on only the first relevant letter.
 Do not copypaste the same theme under different labels.
 
@@ -183,7 +186,7 @@ def generate_anchors(company_url: str, job_description: str, company_research: s
             ],
             response_format={"type": "json_object"},
             temperature=0.2,
-            max_tokens=2000,
+            max_tokens=950,  # must stay below Groq's 1000 output-tokens-per-minute limit
         )
     except (APIConnectionError, APIStatusError, RateLimitError) as exc:
         raise RuntimeError(f"Groq API request failed: {exc}") from exc

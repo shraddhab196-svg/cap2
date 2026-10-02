@@ -6,6 +6,9 @@ from typing import Any, Iterable, Sequence
 
 from fastapi import UploadFile
 
+MIN_COVER_LETTERS = 1
+MAX_COVER_LETTERS = 5
+
 SKILL_KEYWORDS = {
     "python": ["python", "django", "flask", "fastapi", "pandas", "numpy", "sqlalchemy"],
     "javascript": ["javascript", "typescript", "react", "node", "next", "vue", "express"],
@@ -38,8 +41,8 @@ def read_uploaded_text(file: UploadFile) -> str:
     return content.decode("utf-8", errors="replace")
 
 
-def validate_cover_letters(files: Sequence[UploadFile]) -> list[str]:
-    """Require 2–5 uploaded cover letters; reject invalid counts early."""
+def validate_cover_letters(files: Sequence[UploadFile], min_count: int = MIN_COVER_LETTERS) -> list[str]:
+    """Validate uploaded cover-letter files for a given minimum count."""
     if files is None:
         raise ValueError("No cover letters were uploaded.")
 
@@ -48,12 +51,13 @@ def validate_cover_letters(files: Sequence[UploadFile]) -> list[str]:
         for file in files
         if (file.filename or "").strip()
     ]
+    letter_word = "letter" if min_count == 1 else "letters"
     if not cleaned:
-        raise ValueError("Please upload at least 2 previous cover letters.")
-    if len(cleaned) < 2:
-        raise ValueError("Please upload at least 2 previous cover letters.")
-    if len(cleaned) > 5:
-        raise ValueError("You can upload a maximum of 5 previous cover letters.")
+        raise ValueError(f"Please upload at least {min_count} previous cover {letter_word}.")
+    if len(cleaned) < min_count:
+        raise ValueError(f"Please upload at least {min_count} previous cover {letter_word}.")
+    if len(cleaned) > MAX_COVER_LETTERS:
+        raise ValueError(f"You can upload a maximum of {MAX_COVER_LETTERS} previous cover letters.")
 
     return cleaned
 
@@ -110,8 +114,8 @@ def build_candidate_evidence(resume_text: str, previous_letters: Iterable[str]) 
         raise ValueError("Please upload your resume before building your profile.")
 
     letters = [normalize_text(letter) for letter in previous_letters if letter and letter.strip()]
-    if len(letters) < 2:
-        raise ValueError("Please upload at least 2 previous cover letters.")
+    if len(letters) < MIN_COVER_LETTERS:
+        raise ValueError(f"Please upload at least {MIN_COVER_LETTERS} previous cover letter.")
 
     combined_text = "\n".join([normalize_text(resume_text)] + letters)
     evidence = grounded_candidates_from_text(combined_text)
@@ -140,12 +144,12 @@ def build_candidate_evidence(resume_text: str, previous_letters: Iterable[str]) 
 
 
 def build_style_profile(previous_letters: Iterable[str]) -> dict[str, Any]:
-    """Build a writing-style profile based on recurring patterns across 2–5 letters."""
+    """Build a writing-style profile based on recurring patterns across 1–5 letters."""
     texts = [normalize_text(letter) for letter in previous_letters if letter and letter.strip()]
-    if len(texts) < 2:
-        raise ValueError("Please upload at least 2 previous cover letters to analyze writing style.")
-    if len(texts) > 5:
-        raise ValueError("You can upload a maximum of 5 previous cover letters.")
+    if len(texts) < MIN_COVER_LETTERS:
+        raise ValueError(f"Please upload at least {MIN_COVER_LETTERS} previous cover letter to analyze writing style.")
+    if len(texts) > MAX_COVER_LETTERS:
+        raise ValueError(f"You can upload a maximum of {MAX_COVER_LETTERS} previous cover letters.")
 
     combined = " ".join(texts)
     lower = combined.lower()
@@ -220,10 +224,10 @@ def build_profile_bundle(resume_text: str, previous_cover_letters: Iterable[str]
     letters = [normalize_text(letter) for letter in previous_cover_letters if letter and letter.strip()]
     if not resume_text or not resume_text.strip():
         raise ValueError("Please upload your resume before building your profile.")
-    if len(letters) < 2:
-        raise ValueError("Please upload at least 2 previous cover letters.")
-    if len(letters) > 5:
-        raise ValueError("You can upload a maximum of 5 previous cover letters.")
+    if len(letters) < MIN_COVER_LETTERS:
+        raise ValueError(f"Please upload at least {MIN_COVER_LETTERS} previous cover letter.")
+    if len(letters) > MAX_COVER_LETTERS:
+        raise ValueError(f"You can upload a maximum of {MAX_COVER_LETTERS} previous cover letters.")
 
     candidate_evidence = build_candidate_evidence(resume_text, letters)
     style_profile = build_style_profile(letters)
