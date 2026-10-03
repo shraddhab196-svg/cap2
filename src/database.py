@@ -20,12 +20,12 @@ def load_supabase_env() -> tuple[str, str]:
         load_dotenv()
 
     url = os.getenv("SUPABASE_URL")
-    key = os.getenv("SUPABASE_KEY")
+    key = os.getenv("SUPABASE_ANON_KEY") or os.getenv("SUPABASE_KEY")  # same names app.py accepts
 
     if not url or not url.strip():
         raise ValueError("Missing SUPABASE_URL in environment variables.")
     if not key or not key.strip():
-        raise ValueError("Missing SUPABASE_KEY in environment variables.")
+        raise ValueError("Missing SUPABASE_ANON_KEY (or SUPABASE_KEY) in environment variables.")
 
     return url, key
 
