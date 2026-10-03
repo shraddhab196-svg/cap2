@@ -24,7 +24,7 @@ class AnchorGeneratorRequestTests(unittest.TestCase):
         client.chat.completions.create.return_value = SimpleNamespace(choices=[SimpleNamespace(message=SimpleNamespace(content=content))])
 
         with patch.object(anchor_generator, "load_environment"), \
-             patch.object(anchor_generator, "get_groq_client", return_value=(client, "model")):
+             patch.object(anchor_generator, "get_llm_client", return_value=(client, "model")):
             payload = anchor_generator.generate_anchors("https://example.com", "JD", "research", [("letter", "text")])
 
         self.assertEqual(client.chat.completions.create.call_args.kwargs["max_tokens"], 950)

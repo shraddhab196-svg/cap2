@@ -59,7 +59,7 @@ class GenerationTests(unittest.TestCase):
 
     def run_generation(self, responses):
         with patch.object(generator, "load_environment"), \
-             patch.object(generator, "get_groq_client", return_value=(None, "model")), \
+             patch.object(generator, "get_llm_client", return_value=(None, "model")), \
              patch.object(generator, "generate_cover_letter_plan", return_value={"hook": "h"}), \
              patch.object(generator, "semantic_anchor_validation", return_value={"reflected": True}), \
              patch.object(generator, "call_groq_json", side_effect=responses) as mock_call:
@@ -87,7 +87,7 @@ class GenerationTests(unittest.TestCase):
         current = make_letter([150, 150, 100], word="original")
         revised = make_letter([95, 95, 90], word="revised")
         with patch.object(generator, "load_environment"), \
-             patch.object(generator, "get_groq_client", return_value=(None, "model")), \
+             patch.object(generator, "get_llm_client", return_value=(None, "model")), \
              patch.object(generator, "semantic_anchor_validation", return_value={"reflected": True}), \
              patch.object(generator, "call_groq_json", side_effect=[letter_json(make_letter([110, 110, 100], word="revised")), letter_json(revised)]) as mock_call:
             result = generator.generate_cover_letter_revision(current, "make it 1500 words", "JD", ANCHORS, {"tone": "x"}, [("a", "b")], "https://example.com")
@@ -121,7 +121,7 @@ class EvaluationTests(unittest.TestCase):
         client = MagicMock()
         client.chat.completions.create.return_value = SimpleNamespace(choices=[SimpleNamespace(message=SimpleNamespace(content=json.dumps(llm_payload)))])
         letter = make_letter([95, 95, 90])
-        with patch.object(evaluator, "load_environment"), patch.object(evaluator, "get_groq_client", return_value=client):
+        with patch.object(evaluator, "load_environment"), patch.object(evaluator, "get_llm_client", return_value=client):
             result = evaluator.evaluate_cover_letter(letter, "JD", ANCHORS, {"tone": "x"}, ["evidence"], "https://example.com")
         sent_prompt = client.chat.completions.create.call_args.kwargs["messages"][1]["content"]
         self.assertIn(FRAMEWORK_HEADER, sent_prompt)

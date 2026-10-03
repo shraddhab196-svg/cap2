@@ -56,6 +56,7 @@ COVER_LETTER_REQUIREMENT_MESSAGE = (
 )
 
 load_dotenv()
+logging.basicConfig(level=os.getenv("LOG_LEVEL", "INFO"), format="%(asctime)s %(levelname)s %(name)s: %(message)s")
 
 BASE_DIR = Path(__file__).resolve().parent
 MAX_REVISIONS = 3

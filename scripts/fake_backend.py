@@ -10,6 +10,7 @@ Trigger the error paths on purpose:
     - an email starting with "fail" cannot sign in
     - a company URL containing "fail" makes company research time out
     - a job description containing "FAIL" makes letter generation fail (Groq down)
+    - a job description containing "BUSY" makes letter generation hit the rate limit
 """
 from __future__ import annotations
 
@@ -28,6 +29,7 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 import app  # noqa: E402
+from src.llm_client import LLMBusyError  # noqa: E402
 
 SAMPLE_ANCHORS = json.loads((ROOT / "company_anchors.json").read_text(encoding="utf-8"))
 SAMPLE_LETTER = (ROOT / "generated_cover_letter.txt").read_text(encoding="utf-8")
@@ -115,6 +117,8 @@ def fakes(latency: float = 0.0) -> dict[str, Any]:
         slow()
         if "FAIL" in job_description:
             raise RuntimeError("Groq API is unavailable")
+        if "BUSY" in job_description:
+            raise LLMBusyError(detail="429 rate limit for organization org_FAKE")
         return SAMPLE_LETTER
 
     def generate_cover_letter_revision(*, current_letter, user_feedback, **_):

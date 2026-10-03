@@ -73,6 +73,11 @@ class FullJourneyTests(unittest.TestCase):
         groq_down = self.client.post("/company/angles", data={"selected_anchor": "0", "job_application_id": hidden(angles.text, "job_application_id")})
         self.assert_page(groq_down, "Groq API is unavailable", "Generated angles")
 
+        angles = self.client.post("/profile/job-input", data={"job_description": "BUSY role", "company_url": "https://example.com"})
+        busy = self.client.post("/company/angles", data={"selected_anchor": "0", "job_application_id": hidden(angles.text, "job_application_id")})
+        busy_html = self.assert_page(busy, "Lots of people are writing right now. Please try again in a minute.")
+        self.assertNotIn("org_FAKE", busy_html)
+
     def test_bad_login_and_logout(self):
         self.assert_page(self.client.post("/login", data={"email": "fail@example.com", "password": "x"}), "Invalid login credentials")
         self.sign_up_and_build_profile()
