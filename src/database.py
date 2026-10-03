@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import os
 from datetime import datetime, timezone
+from functools import lru_cache
 from pathlib import Path
 from typing import Any
 
@@ -31,11 +32,22 @@ def load_supabase_env() -> tuple[str, str]:
 
 
 def get_client(access_token: str | None = None, refresh_token: str | None = None) -> Client:
-    """Create and return a Supabase client authenticated with the current session when provided."""
+    """Return a Supabase client that queries as the signed-in user (row-level security applies).
+
+    The access token is attached locally; PostgREST verifies it on every query, so there is no extra auth
+    round trip per call. app.py refreshes expiring tokens once per request before they get here.
+    `refresh_token` is accepted for compatibility and not used.
+    """
     url, key = load_supabase_env()
+    return _client_for(url, key, access_token or "")
+
+
+@lru_cache(maxsize=64)
+def _client_for(url: str, key: str, access_token: str) -> Client:
+    # ponytail: one cached client per token (connection reuse); 64 concurrent sessions per process before rebuilds.
     client = create_client(url, key)
-    if access_token and refresh_token:
-        client.auth.set_session(access_token, refresh_token)
+    if access_token:
+        client.postgrest.auth(access_token)
     return client
 
 

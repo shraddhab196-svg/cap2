@@ -173,6 +173,28 @@
 @keyframes strike { 0%, 14% { background-size: 0% 2px; } 20%, 100% { background-size: 100% 2px; } }
 @keyframes fix-in { 0%, 20% { opacity: 0; transform: translateY(6px); } 26%, 88% { opacity: 1; transform: none; } 96%, 100% { opacity: 0; } }
 
+.notice {
+    padding: 14px 16px;
+    border: 1px solid rgba(63, 107, 74, 0.3);
+    border-left: 3px solid var(--ok);
+    border-radius: var(--radius-sm);
+    background: var(--ok-wash);
+    color: var(--ok);
+    font-size: 0.93rem;
+    animation: rise 500ms var(--ease-out) both;
+}
+.inbox { display: grid; gap: 14px; justify-items: start; padding: 28px; border: 1px solid var(--line); border-radius: var(--radius-lg); background: var(--card); }
+.inbox h2 { font-size: 1.7rem; }
+.inbox .btn { margin-top: 8px; }
+.inbox-icon { width: 52px; height: 52px; color: var(--pen); }
+.inbox-icon rect, .inbox-icon path { fill: none; stroke: currentColor; stroke-width: 2; stroke-linejoin: round; }
+.inbox-icon path { stroke-dasharray: 60; stroke-dashoffset: 60; animation: draw 900ms var(--ease-out) 300ms forwards; }
+.rules { display: flex; flex-wrap: wrap; gap: 6px 16px; margin: 4px 0 0; padding: 0; list-style: none; font-size: 0.8rem; color: var(--ink-faint); }
+.rules li { display: inline-flex; align-items: center; gap: 6px; transition: color var(--t-base); }
+.rules li::before { content: ""; width: 7px; height: 7px; border-radius: 50%; border: 1.5px solid currentColor; transition: background var(--t-base) var(--spring-snappy), transform var(--t-base) var(--spring-snappy); }
+.rules li.is-met { color: var(--ok); }
+.rules li.is-met::before { background: currentColor; transform: scale(1.25); }
+
 /* ---------- Profile setup ---------- */
 .setup-grid { display: grid; grid-template-columns: minmax(0, 1fr) 320px; gap: 24px; align-items: start; }
 .setup-section + .setup-section { margin-top: 36px; padding-top: 32px; border-top: 1px dashed var(--line-strong); }

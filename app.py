@@ -1,11 +1,14 @@
 from __future__ import annotations
 
+import base64
 import hashlib
 import json
 import logging
 import os
 import re
 import secrets
+import time
+from concurrent.futures import ThreadPoolExecutor
 from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Any
@@ -94,6 +97,15 @@ ERROR_COPY = {
 }
 
 
+@app.middleware("http")
+async def log_request_time(request: Request, call_next):
+    started = time.perf_counter()
+    response = await call_next(request)
+    if not request.url.path.startswith("/static/"):
+        logging.getLogger("app.timing").info("%s %s -> %s in %.0f ms", request.method, request.url.path, response.status_code, (time.perf_counter() - started) * 1000)
+    return response
+
+
 @app.exception_handler(StarletteHTTPException)
 async def http_error_page(request: Request, exc: StarletteHTTPException):
     if exc.status_code == 401:
@@ -170,18 +182,105 @@ def get_request_session_tokens(request: Request) -> tuple[str | None, str | None
     return request.session.get("access_token"), request.session.get("refresh_token")
 
 
-def app_user_for_request(request: Request) -> dict[str, Any]:
-    auth_user = require_auth(request)
+def token_expires_soon(access_token: str, within_seconds: int = 60) -> bool:
+    """Read the JWT's exp claim locally (no signature check needed just to decide on a refresh)."""
+    try:
+        payload = access_token.split(".")[1]
+        claims = json.loads(base64.urlsafe_b64decode(payload + "=" * (-len(payload) % 4)))
+        return float(claims["exp"]) - time.time() < within_seconds
+    except Exception:
+        return True
+
+
+def ensure_fresh_tokens(request: Request) -> None:
+    """Refresh an expiring session once per request and store the new tokens.
+
+    Supabase refresh tokens are single-use, so the rotated pair must be saved back to the session.
+    """
     access_token, refresh_token = get_request_session_tokens(request)
     if not access_token or not refresh_token:
         raise HTTPException(status_code=401, detail="Authentication required.")
+    if not token_expires_soon(access_token):
+        return
+    try:
+        session = get_supabase_client().auth.refresh_session(refresh_token).session
+    except Exception as exc:
+        logging.getLogger(__name__).info("session refresh failed, asking user to log in again: %s", exc)
+        session = None
+    if not session:
+        # Forget the dead login, or /login would bounce the user straight back here (redirect loop).
+        request.session.clear()
+        raise HTTPException(status_code=401, detail="Session expired.")
+    request.session["access_token"] = session.access_token
+    request.session["refresh_token"] = session.refresh_token
+
+
+def app_user_for_request(request: Request) -> dict[str, Any]:
+    auth_user = require_auth(request)
+    ensure_fresh_tokens(request)
+    # The app user row never changes for a login, so it rides along in the signed session cookie.
+    cached = request.session.get("app_user")
+    if isinstance(cached, dict) and cached.get("auth_user_id") == auth_user.get("id"):
+        return cached["user"]
+    access_token, refresh_token = get_request_session_tokens(request)
     app_user = get_or_create_app_user(
         auth_user_id=auth_user.get("id"),
         name=auth_user.get("email", "user").split("@")[0],
         access_token=access_token,
         refresh_token=refresh_token,
     )
-    return app_user
+    user = {"id": app_user["id"], "name": app_user.get("name"), "email": auth_user.get("email")}
+    request.session["app_user"] = {"auth_user_id": auth_user.get("id"), "user": user}
+    return user
+
+
+def start_session(request: Request, user: Any, email: str, session: Any) -> None:
+    request.session.clear()
+    request.session["auth_user"] = {"id": user.id, "email": email}
+    request.session["access_token"] = session.access_token
+    request.session["refresh_token"] = session.refresh_token
+
+
+EMAIL_PATTERN = re.compile(r"[^@\s]+@[^@\s]+\.[^@\s]+")
+
+
+def normalize_email(email: str) -> str:
+    return (email or "").strip().lower()
+
+
+def email_error(email: str) -> str | None:
+    if not email or len(email) > 254 or not EMAIL_PATTERN.fullmatch(email):
+        return "Enter a valid email address, like name@company.com."
+    return None
+
+
+def password_error(password: str, email: str) -> str | None:
+    if len(password) < 8:
+        return "Use at least 8 characters for your password."
+    if len(password) > 72:
+        return "Use at most 72 characters for your password."
+    if not re.search(r"[A-Za-z]", password) or not re.search(r"\d", password):
+        return "Use at least one letter and one number in your password."
+    if password.lower() in (email, email.split("@")[0]):
+        return "Your password can't be your email address."
+    return None
+
+
+def friendly_auth_error(exc: Exception) -> str:
+    """Supabase auth errors in plain words; anything unexpected is logged, not shown."""
+    text = str(exc).lower()
+    if "invalid login credentials" in text:
+        return "Email or password is incorrect."
+    if "email not confirmed" in text:
+        return "Please confirm your email first. Check your inbox (and spam folder) for the link."
+    if "already registered" in text or "already been registered" in text or "already exists" in text:
+        return "An account with this email already exists. Log in instead."
+    if "rate limit" in text or "too many" in text or "429" in text:
+        return "Too many attempts. Please wait a few minutes and try again."
+    if "password" in text:
+        return "That password isn't accepted. Use at least 8 characters with a letter and a number."
+    logging.getLogger(__name__).error("auth error: %s", exc)
+    return "Something went wrong. Please try again in a moment."
 
 
 def profile_materials_fingerprint(resumes: list[dict[str, Any]], cover_letters: list[dict[str, Any]]) -> str:
@@ -191,12 +290,25 @@ def profile_materials_fingerprint(resumes: list[dict[str, Any]], cover_letters: 
     return hashlib.sha256("\n".join(parts).encode("utf-8")).hexdigest()
 
 
-def build_profile_status(request: Request, user_id: str) -> dict[str, Any]:
+def load_profile_materials(request: Request, user_id: str) -> dict[str, Any]:
+    """The four profile rows, fetched in parallel (each is one ~250 ms round trip to Supabase)."""
     access_token, refresh_token = get_request_session_tokens(request)
-    resumes = get_resumes_for_user(user_id, access_token=access_token, refresh_token=refresh_token)
-    cover_letters = get_cover_letters_for_user(user_id, access_token=access_token, refresh_token=refresh_token)
-    style_profile = get_style_profile(user_id, access_token=access_token, refresh_token=refresh_token)
-    candidate_profile = get_candidate_profile(user_id, access_token=access_token, refresh_token=refresh_token)
+    tokens = {"access_token": access_token, "refresh_token": refresh_token}
+    loaders = {
+        "resumes": get_resumes_for_user,
+        "cover_letters": get_cover_letters_for_user,
+        "style_profile": get_style_profile,
+        "candidate_profile": get_candidate_profile,
+    }
+    with ThreadPoolExecutor(max_workers=len(loaders)) as pool:
+        futures = {name: pool.submit(load, user_id, **tokens) for name, load in loaders.items()}
+        return {name: future.result() for name, future in futures.items()}
+
+
+def build_profile_status(request: Request, user_id: str, materials: dict[str, Any] | None = None) -> dict[str, Any]:
+    materials = materials or load_profile_materials(request, user_id)
+    resumes, cover_letters = materials["resumes"], materials["cover_letters"]
+    style_profile, candidate_profile = materials["style_profile"], materials["candidate_profile"]
     cover_letter_count = len(cover_letters)
     has_resume = bool(resumes)
     has_valid_cover_count = MIN_COVER_LETTERS <= cover_letter_count <= MAX_COVER_LETTERS
@@ -243,54 +355,68 @@ async def home(request: Request):
     return templates.TemplateResponse("landing.html", {"request": request, "user": get_authenticated_user(request)})
 
 
+def app_url(request: Request, path: str) -> str:
+    # APP_URL (e.g. https://yourdomain) wins behind a proxy, where request.base_url may say http://.
+    return (os.getenv("APP_URL") or str(request.base_url)).rstrip("/") + path
+
+
 @app.get("/signup", response_class=HTMLResponse)
 async def signup_page(request: Request):
+    if get_authenticated_user(request):
+        return RedirectResponse(url="/profile/setup", status_code=303)
     return templates.TemplateResponse("signup.html", {"request": request, "error": None})
 
 
 @app.post("/signup", response_class=HTMLResponse)
 def signup(request: Request, email: str = Form(...), password: str = Form(...)):
+    email = normalize_email(email)
+    problem = email_error(email) or password_error(password, email)
+    if problem:
+        return templates.TemplateResponse("signup.html", {"request": request, "error": problem, "email": email})
     try:
-        client = get_supabase_client()
-        auth_response = client.auth.sign_up({"email": email, "password": password})
+        auth_response = get_supabase_client().auth.sign_up({
+            "email": email,
+            "password": password,
+            "options": {"email_redirect_to": app_url(request, "/login?confirmed=1")},
+        })
         session = getattr(auth_response, "session", None) or (auth_response.get("session") if isinstance(auth_response, dict) else None)
         user = getattr(auth_response, "user", None) or (auth_response.get("user") if isinstance(auth_response, dict) else None)
         if not user:
             raise RuntimeError("Sign-up was accepted but no user record was returned.")
         if not session:
+            # Email confirmation is on: Supabase sends a link; nothing to log in to yet.
             request.session.clear()
-            return templates.TemplateResponse(
-                "signup.html",
-                {"request": request, "error": "Your account was created. Please confirm your email before signing in."},
-            )
-        request.session["auth_user"] = {"id": user.id, "email": email}
-        request.session["access_token"] = session.access_token
-        request.session["refresh_token"] = session.refresh_token
+            return templates.TemplateResponse("signup.html", {"request": request, "error": None, "sent_to": email})
+        start_session(request, user, email, session)
         return RedirectResponse(url="/profile/setup", status_code=303)
     except Exception as exc:
-        return templates.TemplateResponse("signup.html", {"request": request, "error": str(exc)})
+        return templates.TemplateResponse("signup.html", {"request": request, "error": friendly_auth_error(exc), "email": email})
 
 
 @app.get("/login", response_class=HTMLResponse)
-async def login_page(request: Request):
-    return templates.TemplateResponse("login.html", {"request": request, "error": None})
+async def login_page(request: Request, confirmed: str = ""):
+    if get_authenticated_user(request):
+        return RedirectResponse(url="/profile/setup", status_code=303)
+    notice = "Email confirmed. Log in to continue." if confirmed else None
+    return templates.TemplateResponse("login.html", {"request": request, "error": None, "notice": notice})
 
 
 @app.post("/login", response_class=HTMLResponse)
 def login(request: Request, email: str = Form(...), password: str = Form(...)):
+    email = normalize_email(email)
+    problem = email_error(email) or (None if password else "Enter your password.")
+    if problem:
+        return templates.TemplateResponse("login.html", {"request": request, "error": problem, "email": email})
     try:
-        client = get_supabase_client()
-        auth_response = client.auth.sign_in_with_password({"email": email, "password": password})
+        auth_response = get_supabase_client().auth.sign_in_with_password({"email": email, "password": password})
         session = getattr(auth_response, "session", None) or (auth_response.get("session") if isinstance(auth_response, dict) else None)
         user = getattr(auth_response, "user", None) or (auth_response.get("user") if isinstance(auth_response, dict) else None)
         if not session or not user:
-            raise RuntimeError("Login failed. Please confirm your credentials and Supabase Auth configuration.")
-        request.session["auth_user"] = {"id": user.id, "email": email}
-        request.session["access_token"] = session.access_token
-        request.session["refresh_token"] = session.refresh_token
+            raise RuntimeError("Invalid login credentials")
+        start_session(request, user, email, session)
         return RedirectResponse(url="/profile/setup", status_code=303)
     except Exception as exc:
-        return templates.TemplateResponse("login.html", {"request": request, "error": str(exc)})
+        return templates.TemplateResponse("login.html", {"request": request, "error": friendly_auth_error(exc), "email": email})
 
 
 @app.get("/logout")
@@ -299,25 +425,24 @@ async def logout(request: Request):
     return RedirectResponse(url="/login", status_code=303)
 
 
+def render_profile_setup(request: Request, user: dict[str, Any], error: str | None = None):
+    materials = load_profile_materials(request, str(user["id"]))
+    resumes = materials["resumes"]
+    return templates.TemplateResponse("profile_setup.html", {
+        "request": request,
+        "user": user,
+        "status": build_profile_status(request, str(user["id"]), materials),
+        "resume": resumes[-1] if resumes else None,
+        "cover_letters": materials["cover_letters"],
+        "error": error,
+    })
+
+
 @app.get("/profile/setup", response_class=HTMLResponse)
 def profile_setup_page(request: Request):
     try:
-        user = app_user_for_request(request)
-        access_token, refresh_token = get_request_session_tokens(request)
-        user_id = str(user["id"])
-        resumes = get_resumes_for_user(user_id, access_token=access_token, refresh_token=refresh_token)
-        cover_letters = get_cover_letters_for_user(user_id, access_token=access_token, refresh_token=refresh_token)
-        status = build_profile_status(request, user_id)
-        current_resume = resumes[-1] if resumes else None
-        return templates.TemplateResponse("profile_setup.html", {
-            "request": request,
-            "user": user,
-            "status": status,
-            "resume": current_resume,
-            "cover_letters": cover_letters,
-            "error": None,
-        })
-    except HTTPException as exc:
+        return render_profile_setup(request, app_user_for_request(request))
+    except HTTPException:
         return RedirectResponse(url="/login", status_code=303)
 
 
@@ -344,9 +469,7 @@ def upload_resume(request: Request, resume: UploadFile = File(None)):
         return RedirectResponse(url="/profile/setup", status_code=303)
     except Exception as exc:
         try:
-            user = app_user_for_request(request)
-            status = build_profile_status(request, str(user["id"]))
-            return templates.TemplateResponse("profile_setup.html", {"request": request, "user": user, "status": status, "error": str(exc)})
+            return render_profile_setup(request, app_user_for_request(request), error=str(exc))
         except HTTPException:
             return RedirectResponse(url="/login", status_code=303)
 
@@ -390,9 +513,7 @@ def upload_cover_letters(request: Request, files: list[UploadFile] = File(...)):
         return RedirectResponse(url="/profile/setup", status_code=303)
     except Exception as exc:
         try:
-            user = app_user_for_request(request)
-            status = build_profile_status(request, str(user["id"]))
-            return templates.TemplateResponse("profile_setup.html", {"request": request, "user": user, "status": status, "error": str(exc)})
+            return render_profile_setup(request, app_user_for_request(request), error=str(exc))
         except HTTPException:
             return RedirectResponse(url="/login", status_code=303)
 
@@ -434,9 +555,7 @@ def build_profile(request: Request):
         return RedirectResponse(url="/profile/ready", status_code=303)
     except Exception as exc:
         try:
-            user = app_user_for_request(request)
-            status = build_profile_status(request, str(user["id"]))
-            return templates.TemplateResponse("profile_setup.html", {"request": request, "user": user, "status": status, "error": str(exc)})
+            return render_profile_setup(request, app_user_for_request(request), error=str(exc))
         except HTTPException:
             return RedirectResponse(url="/login", status_code=303)
 

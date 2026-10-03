@@ -79,7 +79,8 @@ class FullJourneyTests(unittest.TestCase):
         self.assertNotIn("org_FAKE", busy_html)
 
     def test_bad_login_and_logout(self):
-        self.assert_page(self.client.post("/login", data={"email": "fail@example.com", "password": "x"}), "Invalid login credentials")
+        bad = self.assert_page(self.client.post("/login", data={"email": "fail@example.com", "password": "x"}), "Email or password is incorrect.", 'value="fail@example.com"')
+        self.assertNotIn("Invalid login credentials", bad)
         self.sign_up_and_build_profile()
         self.client.get("/logout")
         response = self.client.get("/profile/setup", follow_redirects=False)

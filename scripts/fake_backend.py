@@ -14,6 +14,7 @@ Trigger the error paths on purpose:
 """
 from __future__ import annotations
 
+import base64
 import json
 import os
 import sys
@@ -48,15 +49,26 @@ def fakes(latency: float = 0.0) -> dict[str, Any]:
     def slow(fraction: float = 1.0) -> None:
         time.sleep(latency * fraction)
 
+    def token(user_id: str) -> str:
+        # Shaped like a Supabase JWT (the app reads `exp` to decide when to refresh); not signed.
+        claims = base64.urlsafe_b64encode(json.dumps({"sub": user_id, "exp": int(time.time()) + 3600}).encode()).decode().rstrip("=")
+        return f"fake.{claims}.fake"
+
+    def session_for(user_id: str):
+        return SimpleNamespace(access_token=token(user_id), refresh_token=f"refresh-{new_id()}")
+
     class Auth:
-        def _login(self, credentials: dict[str, str]):
+        def _login(self, credentials: dict[str, Any]):
             email = credentials["email"]
             if email.lower().startswith("fail"):
                 raise RuntimeError("Invalid login credentials")
             user_id = db["users"].setdefault(email, new_id())
-            return SimpleNamespace(user=SimpleNamespace(id=user_id), session=SimpleNamespace(access_token="dev", refresh_token="dev"))
+            return SimpleNamespace(user=SimpleNamespace(id=user_id), session=session_for(user_id))
 
         sign_up = sign_in_with_password = _login
+
+        def refresh_session(self, refresh_token: str):
+            return SimpleNamespace(session=session_for("refreshed"))
 
     def save_resume(user_id, filename, storage_path, extracted_text, **_):
         row = {"id": new_id(), "user_id": user_id, "filename": filename, "storage_path": storage_path, "extracted_text": extracted_text}
