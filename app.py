@@ -160,7 +160,7 @@ def render_cover_letter_page(request: Request, user: dict[str, Any], job_applica
 
 @app.get("/", response_class=HTMLResponse)
 async def home(request: Request):
-    return templates.TemplateResponse("signup.html", {"request": request, "error": None})
+    return templates.TemplateResponse("landing.html", {"request": request, "user": get_authenticated_user(request)})
 
 
 @app.get("/signup", response_class=HTMLResponse)
