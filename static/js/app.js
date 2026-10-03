@@ -130,6 +130,51 @@
         });
     });
 
+    // --- Signup password checklist; the same rules are enforced on the server.
+    $$("[data-password-rules]").forEach((input) => {
+        const rules = {
+            length: (value) => value.length >= 8,
+            mix: (value) => /[A-Za-z]/.test(value) && /\d/.test(value),
+        };
+        const items = $$("[data-rule]", input.closest(".field"));
+        const check = () => {
+            let ok = true;
+            items.forEach((item) => {
+                const met = rules[item.dataset.rule](input.value);
+                item.classList.toggle("is-met", met);
+                ok = ok && met;
+            });
+            input.setCustomValidity(ok || !input.value ? "" : "Use at least 8 characters with a letter and a number.");
+        };
+        input.addEventListener("input", check);
+        check();
+    });
+
+    // --- Slow navigation: a thin progress bar if the next page takes longer than 300 ms.
+    const progress = document.createElement("div");
+    progress.className = "nav-progress";
+    progress.setAttribute("aria-hidden", "true");
+    document.body.append(progress);
+    let progressTimer;
+    const startProgress = () => {
+        clearTimeout(progressTimer);
+        progressTimer = setTimeout(() => progress.classList.add("is-active"), 300);
+    };
+    document.addEventListener("click", (event) => {
+        const link = event.target.closest("a[href]");
+        if (!link || event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || link.target || link.hasAttribute("download")) return;
+        const url = new URL(link.href, location.href);
+        if (url.origin !== location.origin || url.protocol === "javascript:" || (url.hash && url.pathname === location.pathname)) return;
+        startProgress();
+    });
+    document.addEventListener("submit", (event) => {
+        if (!event.defaultPrevented && !document.body.classList.contains("is-working")) startProgress();
+    });
+    addEventListener("pageshow", () => {
+        clearTimeout(progressTimer);
+        progress.classList.remove("is-active");
+    });
+
     // --- Account menu also closes on Escape.
     document.addEventListener("keydown", (event) => {
         const menu = document.querySelector(".account-menu[open]");

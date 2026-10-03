@@ -17,10 +17,23 @@ SUPABASE_URL=...
 SUPABASE_ANON_KEY=...        # or SUPABASE_KEY
 GROQ_API_KEY=...
 GROQ_MODEL=qwen/qwen3.8-27b  # optional, this is the default
+# LLM_MODEL=groq/qwen/qwen3.8-27b             # optional: any LiteLLM model name, overrides GROQ_MODEL
+# LLM_FALLBACK_MODELS=openrouter/qwen/qwen3-32b  # optional: tried in order when the primary is busy or down
 SESSION_SECRET=...           # long random string; required in production (without it, logins reset on every restart)
 ```
 
 In the Supabase SQL editor, run in order: `supabase/schema.sql`, `migration_add_uuid_defaults.sql`, `migration_chunk9_schema_reconciliation.sql`, `migration_add_job_applications.sql`, `migration_chunk10_revision_loop.sql`.
+
+## LLM providers
+
+Every LLM call goes through `src/llm_client.py` ([LiteLLM](https://docs.litellm.ai/)), so switching or adding a provider is configuration, not code:
+
+- `LLM_MODEL` picks the primary model, e.g. `groq/qwen/qwen3.8-27b`, `openrouter/...`, `together_ai/...`. Each provider reads its own key (`GROQ_API_KEY`, `OPENROUTER_API_KEY`, `TOGETHERAI_API_KEY`, ...).
+- `LLM_FALLBACK_MODELS` (comma-separated) is tried in order when the primary is rate-limited or failing. Off by default.
+- Every call logs one line with the step, the model that answered, tokens and cost: `llm usage step=letter model=groq/qwen/qwen3.8-27b prompt=2140 completion=812 cost=$0.00110 seconds=3.1`.
+- Users never see raw provider errors (they can contain account ids); a rate limit shows "Lots of people are writing right now".
+
+Before adding a provider: it will receive users' resumes and letters, so check its data-retention and training terms (and EU hosting if users are in the EU). Fallback models must also support JSON output, and prompts are tuned for Qwen, so try a few real letters on a new model first.
 
 ## Run
 

@@ -382,6 +382,22 @@ textarea.input { min-height: 160px; resize: vertical; }
 .ink-status.is-swapping { opacity: 0; transform: translateY(-10px); filter: blur(6px); }
 .ink-hint { font-family: var(--f-mono); font-size: 0.75rem; letter-spacing: 0.1em; text-transform: uppercase; color: rgba(244, 239, 230, 0.55); }
 
+/* ---------- Slow navigation bar (app.js shows it after 300 ms) ---------- */
+.nav-progress {
+    position: fixed;
+    inset: 0 0 auto;
+    z-index: 95;
+    height: 3px;
+    background: var(--pen);
+    box-shadow: 0 0 10px rgba(217, 67, 43, 0.5);
+    transform: scaleX(0);
+    transform-origin: left;
+    opacity: 0;
+    pointer-events: none;
+}
+.nav-progress.is-active { opacity: 1; animation: nav-progress 12s cubic-bezier(0.08, 0.8, 0.2, 1) forwards; }
+@keyframes nav-progress { from { transform: scaleX(0.05); } to { transform: scaleX(0.92); } }
+
 /* ---------- Page-to-page motion (cross-document View Transitions) ---------- */
 @view-transition { navigation: auto; }
 ::view-transition-old(root) { animation: vt-out 260ms var(--ease-in-out) both; }

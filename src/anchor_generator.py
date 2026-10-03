@@ -8,12 +8,11 @@ from pathlib import Path
 from typing import Any
 
 from dotenv import load_dotenv
-from groq import APIConnectionError, APIStatusError, Groq, RateLimitError
 
 try:
-    from src.groq_client import make_groq_client
+    from src.llm_client import LLMError, chat_client, primary_model
 except ImportError:  # running as a script from inside src/
-    from groq_client import make_groq_client
+    from llm_client import LLMError, chat_client, primary_model
 
 try:
     from company_researcher import research_company
@@ -37,13 +36,9 @@ def load_environment() -> None:
         load_dotenv()
 
 
-def get_groq_client() -> Groq:
-    """Return a configured Groq client or raise a clear error if the API key is missing."""
-    api_key = os.getenv("GROQ_API_KEY")
-    if not api_key or not api_key.strip():
-        raise ValueError("Missing GROQ_API_KEY. Add it to your .env file before running the analyzer.")
-    model_name = os.getenv("GROQ_MODEL", "qwen/qwen3.8-27b")
-    return make_groq_client(api_key), model_name
+def get_llm_client() -> tuple[Any, str]:
+    """Return the LLM gateway client and the primary model name (provider and keys come from the environment)."""
+    return chat_client(), primary_model()
 
 
 def read_job_description_from_file(project_root: Path) -> str:
@@ -176,12 +171,13 @@ Quality bar:
 def generate_anchors(company_url: str, job_description: str, company_research: str, letters: list[tuple[str, str]]) -> dict[str, Any]:
     """Call Groq to generate the anchor set in valid JSON."""
     load_environment()
-    client, model_name = get_groq_client()
+    client, model_name = get_llm_client()
     prompt = build_anchor_prompt(company_url, job_description, company_research, letters)
 
     try:
         response = client.chat.completions.create(
             model=model_name,
+            step="anchors",
             messages=[
                 {
                     "role": "system",
@@ -193,8 +189,8 @@ def generate_anchors(company_url: str, job_description: str, company_research: s
             temperature=0.2,
             max_tokens=950,  # must stay below Groq's 1000 output-tokens-per-minute limit
         )
-    except (APIConnectionError, APIStatusError, RateLimitError) as exc:
-        raise RuntimeError(f"Groq API request failed: {exc}") from exc
+    except LLMError:
+        raise
     except Exception as exc:
         raise RuntimeError(f"Unexpected Groq error: {exc}") from exc
 

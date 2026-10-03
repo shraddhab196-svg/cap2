@@ -10,12 +10,11 @@ from pathlib import Path
 from typing import Any
 
 from dotenv import load_dotenv
-from groq import APIConnectionError, APIStatusError, Groq, RateLimitError
 
 try:
-    from src.groq_client import make_groq_client
+    from src.llm_client import LLMError, chat_client, primary_model
 except ImportError:  # running as a script from inside src/
-    from groq_client import make_groq_client
+    from llm_client import LLMError, chat_client, primary_model
 
 try:
     from src import writing_framework
@@ -35,14 +34,9 @@ def load_environment() -> None:
         load_dotenv()
 
 
-def get_groq_client() -> tuple[Groq, str]:
-    """Return the configured Groq client and model name."""
-    api_key = os.getenv("GROQ_API_KEY")
-    if not api_key or not api_key.strip():
-        raise ValueError("Missing GROQ_API_KEY. Add it to your .env file before generating the cover letter.")
-
-    model_name = os.getenv("GROQ_MODEL", "qwen/qwen3.8-27b")
-    return make_groq_client(api_key), model_name
+def get_llm_client() -> tuple[Any, str]:
+    """Return the LLM gateway client and the primary model name (provider and keys come from the environment)."""
+    return chat_client(), primary_model()
 
 
 def load_style_profile(path: Path) -> dict[str, Any]:
@@ -239,13 +233,14 @@ The candidate_evidence strings must be concrete, attributable to the candidate's
 
 
 def call_groq_json(
-    client: Groq,
+    client: Any,
     model_name: str,
     system_prompt: str,
     user_prompt: str,
     *,
     temperature: float,
     max_tokens: int,
+    step: str = "llm",
 ) -> str:
     """Call Groq with a strict JSON request, falling back to plain text parsing if Groq rejects the JSON schema."""
     messages = [
@@ -256,17 +251,19 @@ def call_groq_json(
     try:
         response = client.chat.completions.create(
             model=model_name,
+            step=step,
             messages=messages,
             response_format={"type": "json_object"},
             temperature=temperature,
             max_tokens=max_tokens,
         )
     except Exception as exc:
-        error_text = str(exc).lower()
+        error_text = str(getattr(exc, "detail", "") or exc).lower()
         if "json_validate_failed" not in error_text and "failed to validate json" not in error_text and "failed to generate json" not in error_text:
             raise
         response = client.chat.completions.create(
             model=model_name,
+            step=step,
             messages=messages,
             temperature=temperature,
             max_tokens=max_tokens,
@@ -294,7 +291,7 @@ def generate_cover_letter_plan(
 ) -> dict[str, Any]:
     """Generate a structured cover-letter plan before final writing."""
     load_environment()
-    client, model_name = get_groq_client()
+    client, model_name = get_llm_client()
     prompt = build_cover_letter_plan_prompt(job_description, selected_anchors, style_profile, previous_letters, company_url)
 
     try:
@@ -305,9 +302,10 @@ def generate_cover_letter_plan(
             prompt,
             temperature=0.1,
             max_tokens=600,
+            step="letter_plan",
         )
-    except (APIConnectionError, APIStatusError, RateLimitError) as exc:
-        raise RuntimeError(f"Groq API request failed while building the cover-letter plan: {exc}") from exc
+    except LLMError:
+        raise
     except Exception as exc:
         raise RuntimeError(f"Unexpected Groq error while building the cover-letter plan: {exc}") from exc
 
@@ -456,7 +454,7 @@ def semantic_anchor_validation(letter: str, selected_anchor: dict[str, Any], job
         return {"reflected": True, "confidence": 1.0, "evidence": "No anchor details were available."}
 
     load_environment()
-    client, model_name = get_groq_client()
+    client, model_name = get_llm_client()
 
     anchor_summary = json.dumps(selected_anchor, ensure_ascii=False, indent=2)
     prompt = f"""
@@ -489,8 +487,9 @@ Return ONLY valid JSON in this exact shape:
             prompt,
             temperature=0.1,
             max_tokens=600,
+            step="anchor_check",
         )
-    except (APIConnectionError, APIStatusError, RateLimitError):
+    except LLMError:
         return {"reflected": True, "confidence": 0.0, "evidence": "Semantic anchor validation could not be completed due to the Groq API issue."}
     except Exception:
         return {"reflected": True, "confidence": 0.0, "evidence": "Semantic anchor validation could not be completed due to an unexpected error."}
@@ -800,7 +799,7 @@ def generate_cover_letter_revision(
 ) -> str:
     """Generate a revised version of the current cover letter using the user's feedback."""
     load_environment()
-    client, model_name = get_groq_client()
+    client, model_name = get_llm_client()
 
     constraints = writing_framework.cap_feedback_constraints(extract_feedback_constraints(user_feedback, feedback_history))
     requested_words = constraints["words"]
@@ -834,9 +833,10 @@ def generate_cover_letter_revision(
                 prompt,
                 temperature=0.2,
                 max_tokens=max_tokens,
+                step="revision",
             )
-        except (APIConnectionError, APIStatusError, RateLimitError) as exc:
-            raise RuntimeError(f"Groq API request failed while revising the letter: {exc}") from exc
+        except LLMError:
+            raise
         except Exception as exc:
             raise RuntimeError(f"Unexpected Groq error while revising the letter: {exc}") from exc
 
@@ -900,7 +900,7 @@ def generate_cover_letter(
 ) -> str:
     """Generate the final cover letter through Groq."""
     load_environment()
-    client, model_name = get_groq_client()
+    client, model_name = get_llm_client()
     plan = generate_cover_letter_plan(job_description, selected_anchors, style_profile, previous_letters, company_url)
     base_prompt = build_cover_letter_prompt(job_description, selected_anchors, style_profile, previous_letters, company_url, plan)
     prompt = base_prompt
@@ -915,9 +915,10 @@ def generate_cover_letter(
                 prompt,
                 temperature=0.25,
                 max_tokens=1200,
+                step="letter",
             )
-        except (APIConnectionError, APIStatusError, RateLimitError) as exc:
-            raise RuntimeError(f"Groq API request failed: {exc}") from exc
+        except LLMError:
+            raise
         except Exception as exc:
             raise RuntimeError(f"Unexpected Groq error: {exc}") from exc
 

@@ -9,12 +9,11 @@ from pathlib import Path
 from typing import Any
 
 from dotenv import load_dotenv
-from groq import APIConnectionError, APIStatusError, Groq, RateLimitError
 
 try:
-    from src.groq_client import make_groq_client
+    from src.llm_client import LLMError, chat_client
 except ImportError:  # running as a script from inside src/
-    from groq_client import make_groq_client
+    from llm_client import LLMError, chat_client
 
 try:
     from src import writing_framework
@@ -34,12 +33,9 @@ def load_environment() -> None:
         load_dotenv()
 
 
-def get_groq_client() -> Groq:
-    """Return the configured Groq client or raise a clear error if the API key is missing."""
-    api_key = os.getenv("GROQ_API_KEY")
-    if not api_key or not api_key.strip():
-        raise ValueError("Missing GROQ_API_KEY. Add it to your .env file before running the evaluator.")
-    return make_groq_client(api_key)
+def get_llm_client() -> Any:
+    """Return the LLM gateway client (provider, model and keys come from the environment)."""
+    return chat_client()
 
 
 def load_json_file(path: Path) -> dict[str, Any]:
@@ -335,7 +331,7 @@ def evaluate_cover_letter(
     )
 
     load_environment()
-    client = get_groq_client()
+    client = get_llm_client()
     prompt = build_evaluation_prompt(
         letter_text=letter_text,
         job_description=job_description,
@@ -347,7 +343,7 @@ def evaluate_cover_letter(
 
     try:
         response = client.chat.completions.create(
-            model=os.getenv("GROQ_MODEL", "qwen/qwen3.8-27b"),
+            step="evaluation",
             messages=[
                 {
                     "role": "system",
@@ -359,8 +355,8 @@ def evaluate_cover_letter(
             temperature=0.2,
             max_tokens=2000,
         )
-    except (APIConnectionError, APIStatusError, RateLimitError) as exc:
-        raise RuntimeError(f"Groq API request failed: {exc}") from exc
+    except LLMError:
+        raise
     except Exception as exc:
         raise RuntimeError(f"Unexpected Groq error: {exc}") from exc
 

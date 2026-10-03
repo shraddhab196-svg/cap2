@@ -7,13 +7,12 @@ from pathlib import Path
 from typing import Any
 
 from dotenv import load_dotenv
-from groq import APIConnectionError, APIStatusError, Groq, RateLimitError
 from pydantic import BaseModel, Field, ValidationError
 
 try:
-    from src.groq_client import make_groq_client
+    from src.llm_client import LLMError, chat_client
 except ImportError:  # running as a script from inside src/
-    from groq_client import make_groq_client
+    from llm_client import LLMError, chat_client
 
 logger = logging.getLogger(__name__)
 
@@ -128,23 +127,20 @@ Each field should be a succinct but useful description. For list fields, use a f
 """.strip()
 
 
-def get_groq_client() -> Groq:
-    """Return a configured Groq client or raise a clear error if the API key is missing."""
-    api_key = os.getenv("GROQ_API_KEY")
-    if not api_key or not api_key.strip():
-        raise ValueError("Missing GROQ_API_KEY. Add it to your .env file before running the analyzer.")
-    return make_groq_client(api_key)
+def get_llm_client() -> Any:
+    """Return the LLM gateway client (provider, model and keys come from the environment)."""
+    return chat_client()
 
 
 def analyze_letters_with_groq(letters: list[tuple[str, str]]) -> StyleProfile:
     """Send the combined letters to Groq and parse a structured StyleProfile response."""
-    client = get_groq_client()
+    client = get_llm_client()
     prompt = build_analysis_prompt(letters)
     schema = StyleProfile.model_json_schema()
 
     try:
         response = client.chat.completions.create(
-            model=os.getenv("GROQ_MODEL", "qwen/qwen3.8-27b"),
+            step="style_analysis",
             messages=[
                 {
                     "role": "system",
@@ -163,8 +159,8 @@ def analyze_letters_with_groq(letters: list[tuple[str, str]]) -> StyleProfile:
             temperature=0.2,
             max_tokens=2000,
         )
-    except (APIConnectionError, APIStatusError, RateLimitError) as exc:
-        raise RuntimeError(f"Groq API request failed: {exc}") from exc
+    except LLMError:
+        raise
     except Exception as exc:
         raise RuntimeError(f"Unexpected Groq error: {exc}") from exc
 

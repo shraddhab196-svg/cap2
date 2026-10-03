@@ -6,5 +6,12 @@
 {% block action %}/signup{% endblock %}
 {% block password_placeholder %}Create a password{% endblock %}
 {% block password_autocomplete %}new-password{% endblock %}
+{% block password_rules %}minlength="8" maxlength="72" aria-describedby="password-rules" data-password-rules{% endblock %}
+{% block password_help %}
+                        <ul class="rules" id="password-rules">
+                            <li data-rule="length">At least 8 characters</li>
+                            <li data-rule="mix">A letter and a number</li>
+                        </ul>
+{% endblock %}
 {% block submit %}Sign up{% endblock %}
 {% block switch %}Already have an account? <a class="link" href="/login">Log in</a>{% endblock %}
