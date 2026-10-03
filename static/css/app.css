@@ -462,9 +462,46 @@
 .note { font-size: 0.9rem; color: var(--ink-soft); }
 .final-note { display: flex; gap: 12px; align-items: center; color: var(--ok); font-weight: 600; }
 
+/* ---------- Error pages ---------- */
+.error-shell { display: flex; flex-direction: column; min-height: 100vh; padding: 28px var(--gutter); }
+.error-main { flex: 1; display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: clamp(24px, 5vw, 72px); align-items: center; width: min(1180px, 100%); margin: 0 auto; }
+.error-code {
+    position: relative;
+    justify-self: center;
+    font-family: var(--f-display);
+    font-size: clamp(7rem, 22vw, 18rem);
+    font-weight: 300;
+    font-style: italic;
+    line-height: 0.9;
+    letter-spacing: -0.06em;
+    color: transparent;
+    -webkit-text-stroke: 1.5px var(--ink);
+    font-variation-settings: "SOFT" 100, "opsz" 144;
+    animation: rise 900ms var(--ease-out) both;
+}
+/* The red pen crosses the number out. */
+.error-code::after {
+    content: "";
+    position: absolute;
+    left: -4%;
+    right: -4%;
+    top: 52%;
+    height: 0.06em;
+    border-radius: 999px;
+    background: var(--pen);
+    rotate: -8deg;
+    transform: scaleX(0);
+    transform-origin: left;
+    animation: cross-out 700ms var(--ease-in-out) 700ms forwards;
+}
+@keyframes cross-out { to { transform: scaleX(1); } }
+.error-copy { display: grid; gap: 18px; }
+.error-copy .actions { margin-top: 12px; gap: 24px; }
+
 /* ---------- Responsive ---------- */
 @media (max-width: 1000px) {
-    .setup-grid, .role-grid, .letter-grid, .ready { grid-template-columns: 1fr; }
+    .setup-grid, .role-grid, .letter-grid, .ready, .error-main { grid-template-columns: 1fr; }
+    .error-code { justify-self: start; }
     .progress, .side { position: static; }
     .tips { order: 2; }
 }

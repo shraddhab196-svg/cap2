@@ -2,7 +2,9 @@ from __future__ import annotations
 
 import hashlib
 import json
+import logging
 import os
+import secrets
 from pathlib import Path
 from typing import Any
 
@@ -11,6 +13,7 @@ from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
+from starlette.exceptions import HTTPException as StarletteHTTPException
 from starlette.middleware.sessions import SessionMiddleware
 from supabase import create_client
 
@@ -54,7 +57,12 @@ load_dotenv()
 BASE_DIR = Path(__file__).resolve().parent
 MAX_REVISIONS = 3
 app = FastAPI(title="Cover Letter AI Profile Builder")
-app.add_middleware(SessionMiddleware, secret_key=os.getenv("SESSION_SECRET", "cover-letter-ai-dev-secret"))
+SESSION_SECRET = os.getenv("SESSION_SECRET")
+if not SESSION_SECRET:
+    # ponytail: per-process random key, so logins reset on restart and don't work across multiple workers. Set SESSION_SECRET in any real deployment.
+    SESSION_SECRET = secrets.token_urlsafe(32)
+    logging.getLogger(__name__).warning("SESSION_SECRET is not set; using a random key. Sessions will not survive a restart.")
+app.add_middleware(SessionMiddleware, secret_key=SESSION_SECRET)
 app.mount("/static", StaticFiles(directory=str(BASE_DIR / "static")), name="static")
 templates = Jinja2Templates(directory=str(BASE_DIR / "templates"))
 templates.env.globals.update(
@@ -62,6 +70,35 @@ templates.env.globals.update(
     MAX_COVER_LETTERS=MAX_COVER_LETTERS,
     COVER_LETTER_REQUIREMENT_MESSAGE=COVER_LETTER_REQUIREMENT_MESSAGE,
 )
+
+
+ERROR_COPY = {
+    404: ("This page isn't in the draft.", "The link may be old, or the page moved. Nothing you did is lost."),
+    500: ("Something smudged the ink.", "That one's on us, not you. Give it a moment and try again."),
+}
+
+
+@app.exception_handler(StarletteHTTPException)
+async def http_error_page(request: Request, exc: StarletteHTTPException):
+    if exc.status_code == 401:
+        return RedirectResponse(url="/login", status_code=303)
+    return render_error_page(request, exc.status_code)
+
+
+@app.exception_handler(Exception)
+async def server_error_page(request: Request, exc: Exception):
+    return render_error_page(request, 500)
+
+
+def render_error_page(request: Request, status_code: int):
+    heading, message = ERROR_COPY.get(status_code, ("Something went wrong.", "Try going back, or start again from the home page."))
+    return templates.TemplateResponse("error.html", {
+        "request": request,
+        "status_code": status_code,
+        "heading": heading,
+        "message": message,
+        "signed_in": "session" in request.scope and bool(get_authenticated_user(request)),
+    }, status_code=status_code)
 
 
 def get_supabase_client() -> Any:

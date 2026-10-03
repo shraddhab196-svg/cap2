@@ -17,7 +17,7 @@ SUPABASE_URL=...
 SUPABASE_ANON_KEY=...        # or SUPABASE_KEY
 GROQ_API_KEY=...
 GROQ_MODEL=qwen/qwen3.8-27b  # optional, this is the default
-SESSION_SECRET=...           # any long random string
+SESSION_SECRET=...           # long random string; required in production (without it, logins reset on every restart)
 ```
 
 In the Supabase SQL editor, run in order: `supabase/schema.sql`, `migration_add_uuid_defaults.sql`, `migration_chunk9_schema_reconciliation.sql`, `migration_add_job_applications.sql`, `migration_chunk10_revision_loop.sql`.
