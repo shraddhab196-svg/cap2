@@ -1,6 +1,8 @@
 import json
+import tempfile
 import unittest
 from contextlib import ExitStack
+from pathlib import Path
 from unittest.mock import patch
 
 from fastapi.testclient import TestClient
@@ -28,13 +30,22 @@ class JobInputRouteTests(unittest.TestCase):
         self.mock_save_job, self.mock_get_job, self.mock_update_anchor, self.mock_get_chain = [patcher.start() for patcher in job_patchers]
         for patcher in job_patchers:
             self.addCleanup(patcher.stop)
+        # Angles are stored per job application; seed the ids these tests use from the sample payload.
+        anchors_dir = tempfile.TemporaryDirectory()
+        self.addCleanup(anchors_dir.cleanup)
+        dir_patcher = patch.object(app, "ANCHORS_DIR", Path(anchors_dir.name))
+        dir_patcher.start()
+        self.addCleanup(dir_patcher.stop)
+        sample = json.loads((app.BASE_DIR / "company_anchors.json").read_text(encoding="utf-8"))
+        for job_id in ("job-1", "job-A", "job-B"):
+            app.store_anchors(job_id, sample)
 
     def submit_job_input(self):
         with patch.object(app, "app_user_for_request", return_value=USER), \
              patch.object(app, "research_company", return_value={"company_research": "company narrative"}), \
              patch.object(app, "get_cover_letters_for_user", return_value=[{"filename": "letter1.txt", "content": "I led a project"}]), \
              patch.object(app, "generate_anchors", return_value={"anchors": []}), \
-             patch.object(app, "save_json"):
+             patch.object(app, "store_anchors"):
             return self.client.post(
                 "/profile/job-input",
                 data={"job_description": "Senior AI engineer", "company_url": "https://example.com"},
@@ -68,7 +79,7 @@ class JobInputRouteTests(unittest.TestCase):
              patch.object(app, "research_company", return_value={"company_research": "company narrative"}) as mock_research, \
              patch.object(app, "get_cover_letters_for_user", return_value=[{"filename": "letter1.txt", "content": "I led a project"}]) as mock_letters, \
              patch.object(app, "generate_anchors", return_value={"company_url": "https://example.com", "anchors": [{"title": "Example anchor"}]}) as mock_generate, \
-             patch.object(app, "save_json") as mock_save_json, \
+             patch.object(app, "store_anchors") as mock_save_json, \
              patch.object(app, "get_candidate_profile", return_value=None), \
              patch.object(app, "get_style_profile", return_value=None):
             response = self.client.post(

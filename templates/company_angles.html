@@ -1,52 +1,50 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Company Angles</title>
-    <link rel="stylesheet" href="/static/styles.css?v=ui-3" />
-</head>
-<body>
-    <div class="layout setup-layout">
-{% include "partials/account_header.html" %}
-
-        <div class="panel">
-            <div class="eyebrow">Company research</div>
-            <h1>Generated angles</h1>
-            <p class="subtle">We identified the strongest company/job-specific angles for this opportunity. Choose one to continue.</p>
-
-            {% if error %}
-            <div class="error-box">{{ error }}</div>
-            {% endif %}
-
+{% extends "base.html" %}
+{% set journey_step = 3 %}
+{% block title %}Company angles{% endblock %}
+{% block content %}
+        <div class="page-head">
+            <div class="eyebrow rise" style="--i:0">Step 03 · Company research</div>
+            <h1 class="rise" style="--i:1">Generated angles<span class="pen-dot">.</span></h1>
+            <p class="lede rise" style="--i:2">We identified the strongest company/job-specific angles for this opportunity. Choose one to continue.</p>
             {% if company_url %}
-            <p class="count-text">Company: {{ company_url }}</p>
+            <div class="rise" style="--i:3"><span class="company-chip">Company: {{ company_url }}</span></div>
             {% endif %}
+        </div>
 
-            <form method="post" action="/company/angles">
-                <input type="hidden" name="job_description" value="{{ job_description }}" />
-                <input type="hidden" name="company_url" value="{{ company_url }}" />
-                <input type="hidden" name="job_application_id" value="{{ job_application_id }}" />
+        {% if error %}
+        <div class="alert" role="alert" style="margin-bottom: 24px">{{ error }}</div>
+        {% endif %}
+
+        <form method="post" action="/company/angles" data-overlay="Opening a fresh page…|Writing in your voice…|Weaving in the company story…|Polishing the last line…">
+            <input type="hidden" name="job_description" value="{{ job_description }}" />
+            <input type="hidden" name="company_url" value="{{ company_url }}" />
+            <input type="hidden" name="job_application_id" value="{{ job_application_id }}" />
+            <fieldset class="angles" style="border:0; margin:0; padding:0; min-width:0">
+                <legend class="visually-hidden">Choose an angle</legend>
                 {% for anchor in anchors %}
-                <div class="upload-box">
-                    <label class="angle-option">
+                <div class="angle" style="--i:{{ loop.index0 }}">
+                    <div class="angle-top">
+                        <span class="angle-num">Angle {{ "%02d" | format(loop.index) }}</span>
+                        <span class="angle-tick" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg></span>
+                    </div>
+                    <label class="angle-title">
                         <input class="angle-radio" type="radio" name="selected_anchor" value="{{ loop.index0 }}" required />
-                        <span class="angle-title">{{ anchor.title }}</span>
+                        {{ anchor.title }}
                     </label>
-                    <p class="subtle"><strong>Company evidence:</strong> {{ anchor.company_evidence }}</p>
-                    <p class="subtle"><strong>Job connection:</strong> {{ anchor.job_connection }}</p>
-                    <p class="subtle"><strong>Candidate evidence:</strong> {{ anchor.candidate_evidence }}</p>
-                    <p class="subtle"><strong>Angle:</strong> {{ anchor.anchor }}</p>
+                    <p class="angle-pitch">{{ anchor.anchor }}</p>
+                    <dl class="evidence">
+                        <div><dt>Company evidence</dt><dd>{{ anchor.company_evidence }}</dd></div>
+                        <div><dt>Job connection</dt><dd>{{ anchor.job_connection }}</dd></div>
+                        <div><dt>Candidate evidence</dt><dd>{{ anchor.candidate_evidence }}</dd></div>
+                    </dl>
                 </div>
                 {% endfor %}
+            </fieldset>
 
-                {% if anchors %}
-                <div class="action-row">
-                    <button type="submit" class="primary-button">Select angle</button>
-                </div>
-                {% endif %}
-            </form>
-        </div>
-    </div>
-</body>
-</html>
+            {% if anchors %}
+            <div class="sticky-action">
+                <button type="submit" class="btn" data-magnetic>Write with this angle</button>
+            </div>
+            {% endif %}
+        </form>
+{% endblock %}

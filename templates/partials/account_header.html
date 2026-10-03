@@ -1,9 +1,19 @@
-{# Shared header for every authenticated page: brand + initials avatar menu (Profile Setup, Log out). #}
+{# Shared header for every authenticated page: brand, journey stepper (when the page sets journey_step), initials avatar menu (Profile Setup, Log out). #}
 {% set identity = ((user.name or user.email) if user else '') or 'User' %}
 {% set name_parts = identity.split('@')[0].replace('.', ' ').replace('_', ' ').replace('-', ' ').replace('+', ' ').split() %}
 {% set initials = ((name_parts[0][0] ~ (name_parts[1][0] if name_parts|length > 1 else '')) if name_parts else 'U')|upper %}
-        <header class="setup-header">
-            <div class="brand">Cover Letter AI</div>
+        <header class="setup-header site-header">
+            <a class="brand" href="/" aria-label="Cover Letter AI home"><span class="brand-mark" aria-hidden="true">c</span><span class="brand-name">Cover Letter AI</span></a>
+            {% if journey_step is defined %}
+            <ol class="journey" aria-label="Your progress">
+                {% for label in ["Profile", "Role", "Angle", "Letter"] %}
+                <li class="journey-step{% if loop.index < journey_step %} is-done{% elif loop.index == journey_step %} is-current{% endif %}"{% if loop.index == journey_step %} aria-current="step"{% endif %}>
+                    <span class="journey-dot" aria-hidden="true"></span>
+                    <span class="journey-label">{{ label }}</span>
+                </li>
+                {% endfor %}
+            </ol>
+            {% endif %}
             <details class="account-menu">
                 <summary aria-label="Account menu">
                     <span class="avatar">{{ initials }}</span>

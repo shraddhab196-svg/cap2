@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+{% block title %}{{ heading }}{% endblock %}
+{% block body_class %}app error-page{% endblock %}
+{% block body %}
+    <div class="error-shell">
+        <a class="brand" href="/" aria-label="Cover Letter AI home"><span class="brand-mark" aria-hidden="true">c</span><span class="brand-name">Cover Letter AI</span></a>
+        <main id="main" class="error-main">
+            <p class="error-code" aria-hidden="true">{{ status_code }}</p>
+            <div class="error-copy">
+                <div class="eyebrow rise" style="--i:0">Error {{ status_code }}</div>
+                <h1 class="rise" style="--i:1">{{ heading }}</h1>
+                <p class="lede rise" style="--i:2">{{ message }}</p>
+                <div class="actions rise" style="--i:3">
+                    {% if signed_in %}
+                    <a class="btn" href="/profile/setup" data-magnetic>Back to your profile</a>
+                    {% else %}
+                    <a class="btn" href="/" data-magnetic>Back to home</a>
+                    {% endif %}
+                    <a class="link" href="javascript:history.back()">Go back</a>
+                </div>
+            </div>
+        </main>
+    </div>
+{% endblock %}

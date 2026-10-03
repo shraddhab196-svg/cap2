@@ -1,40 +1,42 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Job Input</title>
-    <link rel="stylesheet" href="/static/styles.css?v=ui-3" />
-</head>
-<body>
-    <div class="layout setup-layout">
-{% include "partials/account_header.html" %}
+{% extends "base.html" %}
+{% set journey_step = 2 %}
+{% block title %}Job input{% endblock %}
+{% block content %}
+        <div class="page-head">
+            <div class="eyebrow rise" style="--i:0">Step 02 · The role</div>
+            <h1 class="rise" style="--i:1">Paste the role details<span class="pen-dot">.</span></h1>
+            <p class="lede rise" style="--i:2">Add the current Job Description and Company URL to continue with company research and anchor generation.</p>
+        </div>
 
-        <div class="panel">
-            <div class="eyebrow">Job input</div>
-            <h1>Paste the role details</h1>
-            <p class="subtle">Add the current Job Description and Company URL to continue with company research and anchor generation.</p>
+        {% if error %}
+        <div class="alert" role="alert" style="margin-bottom: 24px">{{ error }}</div>
+        {% endif %}
 
-            {% if error %}
-            <div class="error-box">{{ error }}</div>
-            {% endif %}
-
-            <form class="job-input-form" method="post" action="/profile/job-input">
-                <div class="field-group">
-                    <label for="job_description">Job Description</label>
-                    <textarea id="job_description" name="job_description" rows="12" placeholder="Paste the full job description here..." required>{{ job_description or '' }}</textarea>
+        <div class="role-grid">
+            <form class="card card-pad rise" style="--i:3" method="post" action="/profile/job-input" data-overlay="Reading the job description…|Researching the company…|Looking for where you fit…|Finding your strongest angles…">
+                <div class="field">
+                    <label class="field-label" for="job_description">Job Description <span class="field-hint" data-count-for="job_description" aria-live="polite"></span></label>
+                    <textarea class="input" id="job_description" name="job_description" rows="12" placeholder="Paste the full job description here..." data-autogrow required>{{ job_description or '' }}</textarea>
                 </div>
 
-                <div class="field-group">
-                    <label for="company_url">Company URL</label>
-                    <input id="company_url" name="company_url" type="url" value="{{ company_url or '' }}" required />
+                <div class="field">
+                    <label class="field-label" for="company_url">Company URL</label>
+                    <input class="input" id="company_url" name="company_url" type="url" placeholder="https://company.com" value="{{ company_url or '' }}" required />
                 </div>
 
-                <div class="action-row">
-                    <button type="submit" class="primary-button">Continue</button>
+                <div class="actions">
+                    <button type="submit" class="btn" data-magnetic>Continue</button>
                 </div>
             </form>
+
+            <aside class="tips rise" style="--i:4">
+                <div class="eyebrow">For a sharper letter</div>
+                <h2>What helps most</h2>
+                <ol>
+                    <li>Paste the whole posting, including responsibilities and requirements.</li>
+                    <li>Use the company's main site, not the job board link, so research finds the real story.</li>
+                    <li>Next you'll pick one angle; the letter is built around it.</li>
+                </ol>
+            </aside>
         </div>
-    </div>
-</body>
-</html>
+{% endblock %}

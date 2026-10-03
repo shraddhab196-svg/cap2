@@ -1,119 +1,123 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Profile Setup</title>
-    <link rel="stylesheet" href="/static/styles.css?v=ui-3" />
-</head>
-<body>
-    <div class="layout setup-layout">
-{% include "partials/account_header.html" %}
+{% extends "base.html" %}
+{% set journey_step = 1 %}
+{% set letters_ok = MIN_COVER_LETTERS <= status.cover_letter_count <= MAX_COVER_LETTERS %}
+{% set done_count = (1 if status.has_resume else 0) + (1 if letters_ok else 0) + (1 if status.is_current else 0) %}
+{% block title %}Profile setup{% endblock %}
 
-        <div class="setup-heading">
-            <h1>Build your profile</h1>
-            <p>Prepare your profile once for future applications.</p>
+{% macro doc_icon() %}<svg class="file-doc" viewBox="0 0 30 36" aria-hidden="true"><path d="M3 1.5h17l8.5 8.5v24a.5.5 0 0 1-.5.5H3a.5.5 0 0 1-.5-.5V2a.5.5 0 0 1 .5-.5z" fill="#FFFDF8" stroke="#1A1714" stroke-opacity=".35"/><path d="M20 1.5V10h8.5" fill="none" stroke="#1A1714" stroke-opacity=".35"/><path d="M7 16h15M7 20.5h15M7 25h10" stroke="#D9432B" stroke-opacity=".55" stroke-linecap="round"/></svg>{% endmacro %}
+{% macro delete_icon() %}<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 12a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-12M9 7V4h6v3"/></svg>{% endmacro %}
+{% macro ok_icon() %}<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>{% endmacro %}
+
+{% block content %}
+        <div class="page-head">
+            <div class="eyebrow rise" style="--i:0">Step 01 · Your voice</div>
+            <h1 class="rise" style="--i:1">Build your <em>profile</em></h1>
+            <p class="lede rise" style="--i:2">Prepare your profile once for future applications. Your resume tells us what you've done; your past letters tell us how you sound.</p>
         </div>
 
         {% if error %}
-        <div class="error-box">{{ error }}</div>
+        <div class="alert" role="alert" style="margin-bottom: 24px">{{ error }}</div>
         {% endif %}
 
         <div class="setup-grid">
-            <main class="setup-main">
-                <div class="panel setup-card">
-                    <section class="setup-section">
-                        <h2 class="setup-section-title">Resume</h2>
-                        {% if resume %}
-                        <div class="file-row">
-                            <span class="file-icon" aria-hidden="true">📄</span>
-                            <span class="file-name">{{ resume.filename }}</span>
-                            <span class="file-status">✓ Uploaded</span>
+            <div class="card card-pad rise" style="--i:3">
+                <section class="setup-section" aria-labelledby="resume-title">
+                    <div class="section-title">
+                        <h2 id="resume-title">Resume</h2>
+                        <span class="count-pill">PDF or TXT</span>
+                    </div>
+                    {% if resume %}
+                    <ul class="files">
+                        <li class="file">
+                            {{ doc_icon() }}
+                            <span class="file-name" title="{{ resume.filename }}">{{ resume.filename }}</span>
+                            <span class="file-ok">{{ ok_icon() }}Uploaded</span>
                             <form method="post" action="/profile/resume/delete">
                                 <input type="hidden" name="resume_id" value="{{ resume.id }}" />
-                                <button type="submit" class="delete-button" aria-label="Delete {{ resume.filename }}" title="Delete file">
-                                    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 3h6l1 2h4v2H4V5h4l1-2zm-1 7h2v8H8v-8zm6 0h2v8h-2v-8zM6 7h12l-1 12a2 2 0 0 1-2 2H9a2 2 0 0 1-2-2L6 7z"/></svg>
-                                </button>
+                                <button type="submit" class="icon-btn" aria-label="Delete {{ resume.filename }}" title="Delete file">{{ delete_icon() }}</button>
                             </form>
-                        </div>
-                        {% endif %}
-                        <form class="file-row picker-row" method="post" action="/profile/resume" enctype="multipart/form-data">
-                            <label class="file-picker">
-                                <input class="file-input" type="file" name="resume" accept=".pdf,.txt" />
-                                <span class="file-icon" aria-hidden="true">＋</span>
-                                <span class="file-picker-text" data-default="{% if resume %}Choose a new resume file{% else %}Choose resume file{% endif %}">{% if resume %}Choose a new resume file{% else %}Choose resume file{% endif %}</span>
-                            </label>
-                            <button type="submit" class="secondary-button small-button">{% if resume %}Replace{% else %}Upload{% endif %}</button>
-                        </form>
-                    </section>
+                        </li>
+                    </ul>
+                    {% endif %}
+                    <form class="upload" method="post" action="/profile/resume" enctype="multipart/form-data" data-loading>
+                        <label class="dropzone">
+                            <input type="file" name="resume" accept=".pdf,.txt" required />
+                            <span class="dropzone-plus" aria-hidden="true">+</span>
+                            <span class="dropzone-text" data-file-text data-default="{% if resume %}Choose a new resume file{% else %}Choose resume file{% endif %}">{% if resume %}Choose a new resume file{% else %}Choose resume file{% endif %}</span>
+                        </label>
+                        <button type="submit" class="btn btn-ghost btn-sm btn-plain">{% if resume %}Replace{% else %}Upload{% endif %}</button>
+                    </form>
+                </section>
 
-                    <section class="setup-section">
-                        <h2 class="setup-section-title">
-                            Previous cover letters
-                            <span class="setup-section-meta">{{ status.cover_letter_count }} of {{ MAX_COVER_LETTERS }}</span>
-                        </h2>
+                <section class="setup-section" aria-labelledby="letters-title">
+                    <div class="section-title">
+                        <h2 id="letters-title">Previous cover letters</h2>
+                        <span class="count-pill">{{ status.cover_letter_count }} of {{ MAX_COVER_LETTERS }}</span>
+                    </div>
+                    {% if cover_letters %}
+                    <ul class="files">
                         {% for letter in cover_letters %}
-                        <div class="file-row">
-                            <span class="file-icon" aria-hidden="true">📄</span>
-                            <span class="file-name">{{ letter.filename }}</span>
-                            <span class="file-status">✓</span>
+                        <li class="file" style="--i:{{ loop.index0 }}">
+                            {{ doc_icon() }}
+                            <span class="file-name" title="{{ letter.filename }}">{{ letter.filename }}</span>
+                            <span class="file-ok">{{ ok_icon() }}Ready</span>
                             <form method="post" action="/profile/cover-letters/delete">
                                 <input type="hidden" name="cover_letter_id" value="{{ letter.id }}" />
-                                <button type="submit" class="delete-button" aria-label="Delete {{ letter.filename }}" title="Delete file">
-                                    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 3h6l1 2h4v2H4V5h4l1-2zm-1 7h2v8H8v-8zm6 0h2v8h-2v-8zM6 7h12l-1 12a2 2 0 0 1-2 2H9a2 2 0 0 1-2-2L6 7z"/></svg>
-                                </button>
+                                <button type="submit" class="icon-btn" aria-label="Delete {{ letter.filename }}" title="Delete file">{{ delete_icon() }}</button>
                             </form>
-                        </div>
+                        </li>
                         {% endfor %}
-                        {% if status.cover_letter_count < MAX_COVER_LETTERS %}
-                        <form class="file-row picker-row" method="post" action="/profile/cover-letters" enctype="multipart/form-data">
-                            <label class="file-picker">
-                                <input class="file-input" type="file" name="files" accept=".pdf,.txt" />
-                                <span class="file-icon" aria-hidden="true">＋</span>
-                                <span class="file-picker-text" data-default="Choose cover letter file">Choose cover letter file</span>
-                            </label>
-                            <button type="submit" class="secondary-button small-button">Add</button>
-                        </form>
-                        {% endif %}
-                    </section>
+                    </ul>
+                    {% endif %}
+                    {% if status.cover_letter_count < MAX_COVER_LETTERS %}
+                    <form class="upload" method="post" action="/profile/cover-letters" enctype="multipart/form-data" data-loading>
+                        <label class="dropzone">
+                            <input type="file" name="files" accept=".pdf,.txt" required />
+                            <span class="dropzone-plus" aria-hidden="true">+</span>
+                            <span class="dropzone-text" data-file-text data-default="Choose cover letter file">Choose cover letter file</span>
+                        </label>
+                        <button type="submit" class="btn btn-ghost btn-sm btn-plain">Add</button>
+                    </form>
+                    {% endif %}
+                </section>
 
-                    <div class="setup-footer">
-                        {% if status.is_current %}
-                        <form method="get" action="/profile/ready">
-                            <button type="submit" class="primary-button cta-button">Continue</button>
-                        </form>
-                        {% else %}
-                        {% if not status.can_build %}
-                        <p class="helper-text">{{ COVER_LETTER_REQUIREMENT_MESSAGE }}</p>
-                        {% endif %}
-                        <form method="post" action="/profile/build">
-                            <button type="submit" class="primary-button cta-button" {% if not status.can_build %}disabled{% endif %}>Build My Profile</button>
-                        </form>
-                        {% endif %}
-                    </div>
+                <div class="setup-footer">
+                    {% if status.is_current %}
+                    <form method="get" action="/profile/ready">
+                        <button type="submit" class="btn" data-magnetic>Continue</button>
+                    </form>
+                    {% else %}
+                    {% if not status.can_build %}
+                    <p class="helper">{{ COVER_LETTER_REQUIREMENT_MESSAGE }}</p>
+                    {% endif %}
+                    <form method="post" action="/profile/build" data-overlay="Reading your letters…|Listening for your voice…|Mapping your strengths…|Building your profile…">
+                        <button type="submit" class="btn cta-button" {% if not status.can_build %}disabled{% endif %} data-magnetic>Build My Profile</button>
+                    </form>
+                    {% endif %}
                 </div>
-            </main>
+            </div>
 
-            <aside class="panel progress-card" aria-label="Profile setup progress">
+            <aside class="card card-pad progress rise" style="--i:4" aria-label="Profile setup progress">
                 <div class="eyebrow">Profile setup</div>
-                <ul class="progress-steps">
-                    <li class="progress-step">
-                        <span class="step-icon {% if status.has_resume %}done{% endif %}" aria-hidden="true">{% if status.has_resume %}✓{% endif %}</span>
+                <h2>{{ done_count }} of 3 done</h2>
+                <div class="meter" aria-hidden="true"><span style="--p:{{ done_count / 3 }}"></span></div>
+                <ul class="steps">
+                    <li class="step" style="--i:0">
+                        <span class="step-icon{% if status.has_resume %} done{% endif %}" aria-hidden="true">{{ ok_icon() }}</span>
                         <span>
                             <span class="step-label">Resume</span>
                             <span class="step-detail">{% if status.has_resume %}Uploaded{% else %}Not uploaded{% endif %}</span>
                         </span>
                     </li>
-                    <li class="progress-step">
-                        {% set letters_ok = MIN_COVER_LETTERS <= status.cover_letter_count <= MAX_COVER_LETTERS %}
-                        <span class="step-icon {% if letters_ok %}done{% endif %}" aria-hidden="true">{% if letters_ok %}✓{% endif %}</span>
+                    <li class="step" style="--i:1">
+                        <span class="step-icon{% if letters_ok %} done{% endif %}" aria-hidden="true">{{ ok_icon() }}</span>
                         <span>
                             <span class="step-label">Cover letters</span>
                             <span class="step-detail">{{ status.cover_letter_count }} of {{ MAX_COVER_LETTERS }} uploaded</span>
                         </span>
                     </li>
-                    <li class="progress-step">
-                        <span class="step-icon {% if status.is_current %}done{% endif %}" aria-hidden="true">{% if status.is_current %}✓{% endif %}</span>
+                    <li class="step" style="--i:2">
+                        <span class="step-icon{% if status.is_current %} done{% endif %}" aria-hidden="true">{{ ok_icon() }}</span>
                         <span>
                             <span class="step-label">Profile</span>
                             <span class="step-detail">{% if status.is_current %}Up to date{% elif status.has_candidate_profile %}Needs updating{% else %}Not built yet{% endif %}</span>
@@ -122,17 +126,4 @@
                 </ul>
             </aside>
         </div>
-    </div>
-
-    <script>
-        document.querySelectorAll('.file-input').forEach(function (input) {
-            input.addEventListener('change', function () {
-                const text = input.closest('.file-picker').querySelector('.file-picker-text');
-                const file = input.files && input.files[0];
-                text.textContent = file ? file.name : text.dataset.default;
-                text.classList.toggle('selected', Boolean(file));
-            });
-        });
-    </script>
-</body>
-</html>
+{% endblock %}

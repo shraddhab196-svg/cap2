@@ -1,32 +1,10 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Sign Up</title>
-    <link rel="stylesheet" href="/static/styles.css" />
-</head>
-<body class="auth-page">
-    <div class="auth-card">
-        <div class="eyebrow">Cover Letter AI</div>
-        <h1>Create your account</h1>
-        <p class="subtle">Start by signing up to build a personalized profile.</p>
-
-        {% if error %}
-        <div class="error-box">{{ error }}</div>
-        {% endif %}
-
-        <form method="post" action="/signup">
-            <label for="email">Email</label>
-            <input id="email" name="email" type="email" placeholder="name@company.com" required />
-
-            <label for="password">Password</label>
-            <input id="password" name="password" type="password" placeholder="Create a password" required />
-
-            <button type="submit">Sign up</button>
-        </form>
-
-        <p class="switch-link">Already have an account? <a href="/login">Log in</a></p>
-    </div>
-</body>
-</html>
+{% extends "auth_base.html" %}
+{% block title %}Create your account{% endblock %}
+{% block eyebrow %}Cover Letter AI{% endblock %}
+{% block heading %}Create your <em>account</em>{% endblock %}
+{% block lede %}Start by signing up to build a personalized profile.{% endblock %}
+{% block action %}/signup{% endblock %}
+{% block password_placeholder %}Create a password{% endblock %}
+{% block password_autocomplete %}new-password{% endblock %}
+{% block submit %}Sign up{% endblock %}
+{% block switch %}Already have an account? <a class="link" href="/login">Log in</a>{% endblock %}

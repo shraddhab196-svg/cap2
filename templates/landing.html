@@ -1,0 +1,171 @@
+{% extends "base.html" %}
+{% block title %}Cover letters in your own voice{% endblock %}
+{% block styles %}<link rel="stylesheet" href="/static/css/landing.css?v=1" />{% endblock %}
+{% block body_class %}landing{% endblock %}
+{% set start_href = "/profile/setup" if user else "/signup" %}
+
+{% block body %}
+    <div class="cursor" aria-hidden="true"></div>
+
+    <header class="nav" data-intro>
+        <a class="brand" href="/" aria-label="Cover Letter AI home"><span class="brand-mark" aria-hidden="true">c</span><span class="brand-name">Cover Letter AI</span></a>
+        <nav class="nav-links" aria-label="Main">
+            <a class="nav-link" href="#how">How it works</a>
+            {% if user %}
+            <a class="btn btn-sm" href="/profile/setup" data-magnetic>Open the app</a>
+            {% else %}
+            <a class="nav-link" href="/login">Log in</a>
+            <a class="btn btn-sm" href="/signup" data-magnetic>Start writing</a>
+            {% endif %}
+        </nav>
+    </header>
+
+    <main id="main">
+        <section class="hero wrap">
+            <div>
+                <p class="eyebrow" data-intro data-fade>AI cover letters, trained on your own</p>
+                <h1 class="hero-title" data-intro>Cover letters,<br /> in your own <span class="voice">voice.<svg class="underline" viewBox="0 0 320 24" preserveAspectRatio="none" aria-hidden="true"><path d="M3 17C60 7 140 3 222 9s84 9 95-1" /></svg></span></h1>
+                <p class="hero-lede" data-intro data-fade>Upload your resume and a few letters you've written. We learn how you sound, research the company, and draft a letter that reads like you on your best day.</p>
+                <div class="hero-cta" data-intro data-fade>
+                    <a class="btn" href="{{ start_href }}" data-magnetic>{% if user %}Open the app{% else %}Start writing{% endif %}</a>
+                    <a class="link" href="#how">See how it works</a>
+                </div>
+            </div>
+
+            <div class="stage" data-intro aria-label="Example: a draft being revised from a generic opening into a specific one">
+                <div class="paper-under" aria-hidden="true"></div>
+                <div class="paper" data-tilt>
+                    <div class="paper-head"><span>Draft 01</span><span>Northwind · ML Engineer</span></div>
+                    <div class="paper-body" data-typer>
+                        <p data-type>Dear Hiring Team at Northwind,</p>
+                        <p><span class="strike" data-type>I am writing to express my interest in the Machine Learning Engineer role.</span><span class="redline" data-type>Your post asks for someone who can make alerts trustworthy again. That was most of my last year.</span></p>
+                        <p data-type>I rebuilt our monitoring around precision first, and the on-call channel finally went quiet.</p>
+                    </div>
+                    <div class="paper-foot">
+                        <span class="rev"><i class="used"></i><i></i><i></i> Revision 1 of 3</span>
+                        <span class="rev">In your voice</span>
+                    </div>
+                </div>
+                <span class="note-tag" data-note>Sounds like you</span>
+            </div>
+            <div class="scroll-hint" aria-hidden="true">Scroll</div>
+        </section>
+
+        <div class="marquee" aria-hidden="true">
+            <div class="marquee-track">
+                {% for _ in range(2) %}
+                <span>Your resume</span><span>Your past letters</span><span>Your voice</span><span>Their company</span><span>One sharp angle</span><span>A letter that sounds like you</span>
+                {% endfor %}
+            </div>
+        </div>
+
+        <section class="how" id="how">
+            <div class="how-track">
+                <div class="how-intro">
+                    <p class="eyebrow">How it works</p>
+                    <h2>Four steps from blank page to <em>sent.</em></h2>
+                    <p>No prompt engineering, no template library. You bring what you've already written; it does the research and the first draft.</p>
+                </div>
+                <article class="how-step">
+                    <span class="how-num">01 / 04</span>
+                    <h3>Teach it your voice</h3>
+                    <p>Upload your resume and one to five cover letters you've sent. It learns your tone, rhythm, and the things you'd never say.</p>
+                    <div class="viz viz-files" aria-hidden="true">
+                        <div class="doc" style="--d:0">resume.pdf</div>
+                        <div class="doc" style="--d:1">letter-01.pdf</div>
+                        <div class="doc" style="--d:2">letter-02.pdf</div>
+                        <div class="voiceprint">{% for h in [0.3,0.6,0.9,0.5,0.7,1,0.4,0.8,0.6,0.95,0.5,0.7,0.35,0.85,0.6,0.45,0.9,0.55,0.75,0.4,0.65,0.3] %}<i style="--h:{{ h }}; --d:{{ loop.index }}"></i>{% endfor %}</div>
+                    </div>
+                </article>
+                <article class="how-step">
+                    <span class="how-num">02 / 04</span>
+                    <h3>Point it at a role</h3>
+                    <p>Paste the job description and the company's site. It reads both and works out what the team actually needs.</p>
+                    <div class="viz" aria-hidden="true">
+                        <div class="browser">
+                            <div class="browser-bar"><i></i><i></i><i></i><span class="browser-url"><span>northwind.io/about</span></span></div>
+                            <div class="browser-body">
+                                <p>We're hiring an engineer to own <span class="hl" style="--d:0">model reliability</span> across our forecasting stack.</p>
+                                <p>You'll work with <span class="hl" style="--d:1">on-call teams</span> to cut noise and ship <span class="hl" style="--d:2">trustworthy alerts</span>.</p>
+                            </div>
+                        </div>
+                    </div>
+                </article>
+                <article class="how-step">
+                    <span class="how-num">03 / 04</span>
+                    <h3>Choose your angle</h3>
+                    <p>You get a few grounded angles, each linking company evidence to your own. Pick the one that feels most like you.</p>
+                    <div class="viz viz-angles" aria-hidden="true">
+                        <div class="mini-angle">Research to production<i></i></div>
+                        <div class="mini-angle pick">Alerts people trust<i></i></div>
+                        <div class="mini-angle">Small team, big surface<i></i></div>
+                    </div>
+                </article>
+                <article class="how-step">
+                    <span class="how-num">04 / 04</span>
+                    <h3>Refine &amp; sign</h3>
+                    <p>Read the draft, mark it up in plain words, and get up to three revisions. Accept the one you'd send.</p>
+                    <div class="viz" aria-hidden="true">
+                        <div class="mini-sheet">
+                            <span class="strike">I am a passionate, results-driven team player.</span>
+                            <span class="redline">I care most about the alert nobody has to wake up for.</span>
+                            <span class="stamp-mini">FINAL</span>
+                        </div>
+                    </div>
+                </article>
+            </div>
+        </section>
+
+        <section class="manifesto wrap">
+            <p class="manifesto-text" data-words>Generic AI letters sound like everyone. Yours shouldn't. It learns from letters you've already written, <em>your rhythm, your habits, your evidence</em>, and writes the next one the way you would.</p>
+        </section>
+
+        <section class="never wrap">
+            <div class="never-head">
+                <p class="eyebrow">House rules</p>
+                <h2>Things your letter will <em>never</em> say.</h2>
+            </div>
+            <div class="never-grid">
+                <div class="never-item" style="--d:0">
+                    <p class="cliche"><span class="strike">“I am writing to express my interest…”</span></p>
+                    <p>Generic openings are banned. The first line names something real about the role and connects it to you.</p>
+                </div>
+                <div class="never-item" style="--d:1">
+                    <p class="cliche"><span class="strike">“I am passionate and results-driven.”</span></p>
+                    <p>Empty claims get flagged and rewritten. Specific things you did stand in for adjectives about yourself.</p>
+                </div>
+                <div class="never-item" style="--d:2">
+                    <p class="cliche"><span class="strike">“I grew revenue by 300%.”</span></p>
+                    <p>Unless you did. Nothing is invented: every number, project, and skill comes from your own documents.</p>
+                </div>
+            </div>
+        </section>
+
+        <section class="cta">
+            <div class="wrap">
+                <p class="eyebrow">Your next application</p>
+                <h2 class="cta-title" data-cta-title>Write the letter you'd write on your <em>best day.</em></h2>
+                <div class="cta-row">
+                    <svg class="signature" viewBox="0 0 360 110" aria-hidden="true"><path d="M12 78c14-40 34-62 40-44s-18 52-4 46 30-58 42-50-10 48 4 44 22-34 32-32-6 26 6 26 20-30 30-30-2 28 10 26 24-36 36-34-8 30 6 30 30-20 44-24M40 96c70-8 170-12 300-16" /></svg>
+                    <a class="btn btn-paper" href="{{ start_href }}" data-magnetic>{% if user %}Open the app{% else %}Start writing{% endif %}</a>
+                </div>
+                <footer class="footer">
+                    <a class="brand" href="/" aria-label="Cover Letter AI home"><span class="brand-mark" aria-hidden="true">c</span><span class="brand-name">Cover Letter AI</span></a>
+                    <nav aria-label="Footer">
+                        <a href="#how">How it works</a>
+                        <a href="/login">Log in</a>
+                        <a href="/signup">Sign up</a>
+                    </nav>
+                </footer>
+            </div>
+        </section>
+    </main>
+{% endblock %}
+
+{% block scripts %}
+    <script src="https://cdn.jsdelivr.net/npm/gsap@3.13.0/dist/gsap.min.js" defer></script>
+    <script src="https://cdn.jsdelivr.net/npm/gsap@3.13.0/dist/ScrollTrigger.min.js" defer></script>
+    <script src="https://cdn.jsdelivr.net/npm/gsap@3.13.0/dist/SplitText.min.js" defer></script>
+    <script src="https://cdn.jsdelivr.net/npm/lenis@1.3.26/dist/lenis.min.js" defer></script>
+    <script src="/static/js/landing.js?v=1" defer></script>
+{% endblock %}

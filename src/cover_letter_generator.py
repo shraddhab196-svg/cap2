@@ -13,6 +13,11 @@ from dotenv import load_dotenv
 from groq import APIConnectionError, APIStatusError, Groq, RateLimitError
 
 try:
+    from src.groq_client import make_groq_client
+except ImportError:  # running as a script from inside src/
+    from groq_client import make_groq_client
+
+try:
     from src import writing_framework
 except ImportError:  # running as a script from inside src/
     import writing_framework
@@ -37,7 +42,7 @@ def get_groq_client() -> tuple[Groq, str]:
         raise ValueError("Missing GROQ_API_KEY. Add it to your .env file before generating the cover letter.")
 
     model_name = os.getenv("GROQ_MODEL", "qwen/qwen3.8-27b")
-    return Groq(api_key=api_key), model_name
+    return make_groq_client(api_key), model_name
 
 
 def load_style_profile(path: Path) -> dict[str, Any]:

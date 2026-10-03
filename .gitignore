@@ -13,3 +13,6 @@ venv/
 # Project output
 extracted_letters/*.txt
 style_profile.json
+
+# Per-application company angles (runtime data)
+generated/

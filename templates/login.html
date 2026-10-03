@@ -1,32 +1,9 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Login</title>
-    <link rel="stylesheet" href="/static/styles.css" />
-</head>
-<body class="auth-page">
-    <div class="auth-card">
-        <div class="eyebrow">Welcome back</div>
-        <h1>Log in</h1>
-        <p class="subtle">Continue building your profile.</p>
-
-        {% if error %}
-        <div class="error-box">{{ error }}</div>
-        {% endif %}
-
-        <form method="post" action="/login">
-            <label for="email">Email</label>
-            <input id="email" name="email" type="email" placeholder="name@company.com" required />
-
-            <label for="password">Password</label>
-            <input id="password" name="password" type="password" placeholder="Your password" required />
-
-            <button type="submit">Log in</button>
-        </form>
-
-        <p class="switch-link">Need an account? <a href="/signup">Create one</a></p>
-    </div>
-</body>
-</html>
+{% extends "auth_base.html" %}
+{% block title %}Log in{% endblock %}
+{% block eyebrow %}Welcome back{% endblock %}
+{% block heading %}Log <em>in</em>{% endblock %}
+{% block lede %}Continue building your profile.{% endblock %}
+{% block action %}/login{% endblock %}
+{% block password_placeholder %}Your password{% endblock %}
+{% block submit %}Log in{% endblock %}
+{% block switch %}Need an account? <a class="link" href="/signup">Create one</a>{% endblock %}

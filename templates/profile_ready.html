@@ -1,24 +1,35 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Profile Ready</title>
-    <link rel="stylesheet" href="/static/styles.css?v=ui-3" />
-</head>
-<body>
-    <div class="layout setup-layout">
-{% include "partials/account_header.html" %}
+{% extends "base.html" %}
+{% set journey_step = 2 %}
+{% set sp = style_profile if style_profile is mapping else {} %}
+{% block title %}Profile ready{% endblock %}
+{% block content %}
+        <div class="ready">
+            <div>
+                <svg class="seal" viewBox="0 0 92 92" aria-hidden="true"><circle cx="46" cy="46" r="42"/><circle cx="46" cy="46" r="35" stroke-dasharray="2 5"/><path d="M31 47l10 10 21-22"/></svg>
+                <div class="eyebrow rise" style="--i:0">Profile ready</div>
+                <h1 class="rise" style="--i:1; margin-top:14px">Your profile is <em>complete</em></h1>
+                <p class="lede rise" style="--i:2; margin-top:18px">Your documents have been processed successfully. Now paste the Job Description and Company URL to continue.</p>
+                <form method="get" action="/profile/job-input" class="actions rise" style="--i:3">
+                    <button type="submit" class="btn" data-magnetic>Continue</button>
+                </form>
+            </div>
 
-        <div class="panel">
-            <div class="eyebrow">Profile ready</div>
-            <h1>Your profile is complete</h1>
-            <p class="subtle">Your documents have been processed successfully. Now paste the Job Description and Company URL to continue.</p>
-
-            <form method="get" action="/profile/job-input">
-                <button type="submit" class="primary-button">Continue</button>
-            </form>
+            {# Keys differ by builder: profile_builder gives tone/sentence_structure/...; style_analyzer adds personal_voice. #}
+            {% set quote = sp.personal_voice or sp.tone %}
+            {% if quote is string and quote %}
+            <figure class="voice-card rise" style="--i:4; margin:0">
+                <div class="eyebrow">How you sound</div>
+                <blockquote class="voice-quote" style="margin-inline:0">{{ quote | truncate(220) }}</blockquote>
+                <dl class="traits">
+                    {% set shown = namespace(n=0) %}
+                    {% for key, label in [("tone", "Tone"), ("sentence_structure", "Sentences"), ("opening_style", "Openings"), ("detail_level", "Detail"), ("formality", "Formality"), ("conciseness", "Pace")] %}
+                    {% if shown.n < 3 and sp[key] is string and sp[key] and sp[key] != quote %}
+                    {% set shown.n = shown.n + 1 %}
+                    <div><dt>{{ label }}</dt><dd>{{ sp[key] | truncate(140) }}</dd></div>
+                    {% endif %}
+                    {% endfor %}
+                </dl>
+            </figure>
+            {% endif %}
         </div>
-    </div>
-</body>
-</html>
+{% endblock %}
