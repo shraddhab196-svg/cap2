@@ -1,0 +1,23 @@
+# Render Blueprint: Dashboard -> New -> Blueprint -> pick this repo.
+# Secrets marked `sync: false` are entered in the Render dashboard, never committed.
+services:
+  - type: web
+    name: cover-letter-ai
+    runtime: python
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    # --proxy-headers: Render terminates HTTPS, so trust its forwarded headers for https:// URLs.
+    startCommand: uvicorn app:app --host 0.0.0.0 --port $PORT --proxy-headers --forwarded-allow-ips="*"
+    healthCheckPath: /healthz
+    autoDeploy: true
+    envVars:
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_ANON_KEY
+        sync: false
+      - key: GROQ_API_KEY
+        sync: false
+      - key: APP_URL
+        sync: false
+      - key: SESSION_SECRET
+        generateValue: true

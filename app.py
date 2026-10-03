@@ -350,6 +350,12 @@ def render_cover_letter_page(request: Request, user: dict[str, Any], job_applica
     })
 
 
+@app.api_route("/healthz", methods=["GET", "HEAD"])
+async def healthz():
+    # For the host's health checks: answers without touching Supabase or Groq, so a slow provider can't trigger restarts.
+    return {"ok": True}
+
+
 @app.get("/", response_class=HTMLResponse)
 async def home(request: Request):
     return templates.TemplateResponse("landing.html", {"request": request, "user": get_authenticated_user(request)})

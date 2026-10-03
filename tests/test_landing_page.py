@@ -32,6 +32,10 @@ class LandingPageTests(unittest.TestCase):
                 with self.subTest(template=template.name, asset=asset):
                     self.assertTrue((app.BASE_DIR / "static" / asset).is_file())
 
+    def test_health_check_answers_get_and_head(self):
+        self.assertEqual(self.client.get("/healthz").json(), {"ok": True})
+        self.assertEqual(self.client.head("/healthz").status_code, 200)
+
 
 if __name__ == "__main__":
     unittest.main()
