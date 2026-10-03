@@ -25,17 +25,19 @@ def read_uploaded_text(file: UploadFile) -> str:
         return ""
     filename = (file.filename or "").lower()
     if filename.endswith(".pdf"):
+        import tempfile
         from pathlib import Path
 
         from src.pdf_extractor import extract_pdf_text
 
-        temp_path = Path(file.filename or "temp.pdf")
-        temp_path.write_bytes(file.file.read())
+        # A unique temp file: the uploaded name can collide between users or contain "../".
+        with tempfile.NamedTemporaryFile(suffix=".pdf", delete=False) as handle:
+            handle.write(file.file.read())
+            temp_path = Path(handle.name)
         try:
             return extract_pdf_text(temp_path)
         finally:
-            if temp_path.exists():
-                temp_path.unlink(missing_ok=True)
+            temp_path.unlink(missing_ok=True)
 
     content = file.file.read()
     return content.decode("utf-8", errors="replace")

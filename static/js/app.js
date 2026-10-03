@@ -7,7 +7,10 @@
     // --- Busy states. data-loading: spinner on the button. data-overlay="a|b|c": ink overlay with rotating status lines.
     const overlay = document.querySelector(".ink-overlay");
     const status = overlay && overlay.querySelector("[data-ink-status]");
+    const hint = overlay && overlay.querySelector(".ink-hint");
+    const defaultHint = hint && hint.textContent;
     let ticker;
+    let slowTimer;
 
     document.addEventListener("submit", (event) => {
         const form = event.target;
@@ -35,12 +38,18 @@
             }, 360);
         }, 3200);
         document.body.classList.add("is-working");
+        clearTimeout(slowTimer);
+        slowTimer = setTimeout(() => {
+            if (hint) hint.textContent = "Taking longer than usual · still working, no need to refresh";
+        }, 45000);
     });
 
     // Back/forward cache restores the page mid-"working": reset it.
     addEventListener("pageshow", (event) => {
         if (!event.persisted) return;
         clearInterval(ticker);
+        clearTimeout(slowTimer);
+        if (hint) hint.textContent = defaultHint;
         document.body.classList.remove("is-working");
         $$('[aria-busy="true"]').forEach((button) => {
             button.removeAttribute("aria-busy");

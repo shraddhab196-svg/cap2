@@ -4,10 +4,13 @@ import hashlib
 import json
 import logging
 import os
+import re
 import secrets
+from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Any
 
+import anyio.to_thread
 from dotenv import load_dotenv
 from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import HTMLResponse, RedirectResponse
@@ -56,7 +59,19 @@ load_dotenv()
 
 BASE_DIR = Path(__file__).resolve().parent
 MAX_REVISIONS = 3
-app = FastAPI(title="Cover Letter AI Profile Builder")
+# Routes that call Supabase, Groq or the company site are plain `def`, so FastAPI runs them on worker threads
+# and one user's 30-second letter never blocks anyone else. Pages without I/O stay `async` on the event loop.
+WORKER_THREADS = int(os.getenv("WORKER_THREADS", "100"))
+
+
+@asynccontextmanager
+async def lifespan(_: FastAPI):
+    # ponytail: one shared pool (default 40) sized up for slow LLM calls; a separate limiter or job queue if they ever crowd out uploads.
+    anyio.to_thread.current_default_thread_limiter().total_tokens = WORKER_THREADS
+    yield
+
+
+app = FastAPI(title="Cover Letter AI Profile Builder", lifespan=lifespan)
 SESSION_SECRET = os.getenv("SESSION_SECRET")
 if not SESSION_SECRET:
     # ponytail: per-process random key, so logins reset on restart and don't work across multiple workers. Set SESSION_SECRET in any real deployment.
@@ -99,6 +114,33 @@ def render_error_page(request: Request, status_code: int):
         "message": message,
         "signed_in": "session" in request.scope and bool(get_authenticated_user(request)),
     }, status_code=status_code)
+
+
+# Company angles are stored per job application. They used to share one company_anchors.json for every user,
+# so two people using the app close together could see each other's angles (which quote their resume evidence).
+ANCHORS_DIR = BASE_DIR / "generated" / "anchors"
+
+
+def anchors_path(job_application_id: str) -> Path:
+    # Only call with an id taken from a job_applications row already checked against the current user.
+    if not re.fullmatch(r"[A-Za-z0-9_-]{1,64}", job_application_id or ""):
+        raise ValueError("Invalid job application id.")
+    return ANCHORS_DIR / f"{job_application_id}.json"
+
+
+def load_anchors(job_application_id: str) -> list[dict[str, Any]]:
+    try:
+        payload = json.loads(anchors_path(job_application_id).read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return []
+    anchors = payload.get("anchors", []) if isinstance(payload, dict) else []
+    return anchors if isinstance(anchors, list) else []
+
+
+def store_anchors(job_application_id: str, payload: dict[str, Any]) -> None:
+    path = anchors_path(job_application_id)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    save_json(path, payload)
 
 
 def get_supabase_client() -> Any:
@@ -206,7 +248,7 @@ async def signup_page(request: Request):
 
 
 @app.post("/signup", response_class=HTMLResponse)
-async def signup(request: Request, email: str = Form(...), password: str = Form(...)):
+def signup(request: Request, email: str = Form(...), password: str = Form(...)):
     try:
         client = get_supabase_client()
         auth_response = client.auth.sign_up({"email": email, "password": password})
@@ -234,7 +276,7 @@ async def login_page(request: Request):
 
 
 @app.post("/login", response_class=HTMLResponse)
-async def login(request: Request, email: str = Form(...), password: str = Form(...)):
+def login(request: Request, email: str = Form(...), password: str = Form(...)):
     try:
         client = get_supabase_client()
         auth_response = client.auth.sign_in_with_password({"email": email, "password": password})
@@ -257,7 +299,7 @@ async def logout(request: Request):
 
 
 @app.get("/profile/setup", response_class=HTMLResponse)
-async def profile_setup_page(request: Request):
+def profile_setup_page(request: Request):
     try:
         user = app_user_for_request(request)
         access_token, refresh_token = get_request_session_tokens(request)
@@ -279,7 +321,7 @@ async def profile_setup_page(request: Request):
 
 
 @app.post("/profile/resume", response_class=HTMLResponse)
-async def upload_resume(request: Request, resume: UploadFile = File(None)):
+def upload_resume(request: Request, resume: UploadFile = File(None)):
     try:
         user = app_user_for_request(request)
         access_token, refresh_token = get_request_session_tokens(request)
@@ -309,7 +351,7 @@ async def upload_resume(request: Request, resume: UploadFile = File(None)):
 
 
 @app.post("/profile/resume/delete", response_class=HTMLResponse)
-async def delete_resume_route(request: Request, resume_id: str = Form(...)):
+def delete_resume_route(request: Request, resume_id: str = Form(...)):
     try:
         user = app_user_for_request(request)
         access_token, refresh_token = get_request_session_tokens(request)
@@ -320,7 +362,7 @@ async def delete_resume_route(request: Request, resume_id: str = Form(...)):
 
 
 @app.post("/profile/cover-letters", response_class=HTMLResponse)
-async def upload_cover_letters(request: Request, files: list[UploadFile] = File(...)):
+def upload_cover_letters(request: Request, files: list[UploadFile] = File(...)):
     try:
         user = app_user_for_request(request)
         access_token, refresh_token = get_request_session_tokens(request)
@@ -355,7 +397,7 @@ async def upload_cover_letters(request: Request, files: list[UploadFile] = File(
 
 
 @app.post("/profile/cover-letters/delete", response_class=HTMLResponse)
-async def delete_cover_letter_route(request: Request, cover_letter_id: str = Form(...)):
+def delete_cover_letter_route(request: Request, cover_letter_id: str = Form(...)):
     try:
         user = app_user_for_request(request)
         access_token, refresh_token = get_request_session_tokens(request)
@@ -366,7 +408,7 @@ async def delete_cover_letter_route(request: Request, cover_letter_id: str = For
 
 
 @app.post("/profile/build", response_class=HTMLResponse)
-async def build_profile(request: Request):
+def build_profile(request: Request):
     try:
         user = app_user_for_request(request)
         access_token, refresh_token = get_request_session_tokens(request)
@@ -399,7 +441,7 @@ async def build_profile(request: Request):
 
 
 @app.get("/profile/ready", response_class=HTMLResponse)
-async def profile_ready(request: Request):
+def profile_ready(request: Request):
     try:
         user = app_user_for_request(request)
         access_token, refresh_token = get_request_session_tokens(request)
@@ -421,7 +463,7 @@ async def profile_ready(request: Request):
 
 
 @app.get("/profile/job-input", response_class=HTMLResponse)
-async def job_input_page(request: Request):
+def job_input_page(request: Request):
     try:
         user = app_user_for_request(request)
         return templates.TemplateResponse("job_input.html", {
@@ -436,7 +478,7 @@ async def job_input_page(request: Request):
 
 
 @app.post("/profile/job-input", response_class=HTMLResponse)
-async def submit_job_input(request: Request, job_description: str = Form(...), company_url: str = Form(...)):
+def submit_job_input(request: Request, job_description: str = Form(...), company_url: str = Form(...)):
     try:
         user = app_user_for_request(request)
         jd = (job_description or "").strip()
@@ -479,7 +521,7 @@ async def submit_job_input(request: Request, job_description: str = Form(...), c
             company_research=company_research["company_research"],
             letters=letters,
         )
-        save_json(BASE_DIR / "company_anchors.json", anchor_payload)
+        store_anchors(str(job_application["id"]), anchor_payload)
         return RedirectResponse(url="/company/angles", status_code=303)
     except ValueError as exc:
         try:
@@ -508,19 +550,9 @@ async def submit_job_input(request: Request, job_description: str = Form(...), c
 
 
 @app.get("/company/angles", response_class=HTMLResponse)
-async def company_angles_page(request: Request):
+def company_angles_page(request: Request):
     try:
         user = app_user_for_request(request)
-        payload_path = BASE_DIR / "company_anchors.json"
-        if not payload_path.exists():
-            return RedirectResponse(url="/profile/job-input", status_code=303)
-
-        try:
-            payload = json.loads(payload_path.read_text(encoding="utf-8"))
-        except json.JSONDecodeError:
-            return RedirectResponse(url="/profile/job-input", status_code=303)
-
-        anchors = payload.get("anchors", []) if isinstance(payload, dict) else []
         user_id = str(user["id"])
         access_token, refresh_token = get_request_session_tokens(request)
         job_application_id = request.session.get("job_application_id")
@@ -529,9 +561,12 @@ async def company_angles_page(request: Request):
         job_application = get_job_application(user_id, job_application_id=job_application_id, access_token=access_token, refresh_token=refresh_token)
         if not job_application:
             return RedirectResponse(url="/profile/job-input", status_code=303)
+        anchors = load_anchors(str(job_application["id"]))
+        if not anchors:
+            return RedirectResponse(url="/profile/job-input", status_code=303)
         db_company_url = job_application.get("company_url") if isinstance(job_application, dict) else ""
         db_job_description = job_application.get("job_description") if isinstance(job_application, dict) else ""
-        company_url = (db_company_url or request.session.get("company_url") or (payload.get("company_url", "") if isinstance(payload, dict) else "")).strip()
+        company_url = (db_company_url or request.session.get("company_url") or "").strip()
         job_description = (db_job_description or request.session.get("job_description") or "").strip()
         return templates.TemplateResponse("company_angles.html", {
             "request": request,
@@ -547,27 +582,16 @@ async def company_angles_page(request: Request):
 
 
 @app.post("/company/angles", response_class=HTMLResponse)
-async def select_company_angle(
+def select_company_angle(
     request: Request,
     selected_anchor: str = Form(...),
     job_description: str = Form(""),
     company_url: str = Form(""),
     job_application_id: str = Form(""),
 ):
+    verified_job_id = ""
     try:
         user = app_user_for_request(request)
-        anchors_payload_path = BASE_DIR / "company_anchors.json"
-        if not anchors_payload_path.exists():
-            raise FileNotFoundError("No company angle data is available yet. Please go back to Job Input and generate angles again.")
-
-        payload = json.loads(anchors_payload_path.read_text(encoding="utf-8"))
-        if not isinstance(payload, dict):
-            raise ValueError("The generated company angle payload is invalid.")
-
-        anchors = payload.get("anchors", [])
-        if not isinstance(anchors, list) or not anchors:
-            raise ValueError("No company angles were generated for this opportunity.")
-
         if not selected_anchor:
             raise ValueError("Please choose one angle.")
 
@@ -575,9 +599,6 @@ async def select_company_angle(
             selected_index = int(selected_anchor)
         except (TypeError, ValueError):
             raise ValueError("The selected angle was not valid.") from None
-
-        if selected_index < 0 or selected_index >= len(anchors):
-            raise ValueError("The selected angle is outside the generated list.")
 
         user_id = str(user["id"])
         access_token, refresh_token = get_request_session_tokens(request)
@@ -594,6 +615,13 @@ async def select_company_angle(
                 "company_url": company_url or "",
                 "error": "No saved job details were found. Please submit the Job Description and Company URL again.",
             })
+
+        verified_job_id = str(job_application["id"])
+        anchors = load_anchors(verified_job_id)
+        if not anchors:
+            raise ValueError("No company angles were found for this application. Please go back to Job Input and generate angles again.")
+        if selected_index < 0 or selected_index >= len(anchors):
+            raise ValueError("The selected angle is outside the generated list.")
 
         jd = (job_application.get("job_description") or "").strip()
         company_url_value = (job_application.get("company_url") or "").strip()
@@ -628,6 +656,7 @@ async def select_company_angle(
             # Never add a second revision 0 to an existing chain: start a fresh application with the same job details.
             job_application = save_job_application(user_id, jd, company_url_value, access_token=access_token, refresh_token=refresh_token)
             job_application_id = str(job_application["id"])
+            store_anchors(job_application_id, {"anchors": anchors})
         request.session["job_application_id"] = job_application_id
 
         update_job_application_anchor(
@@ -663,14 +692,8 @@ async def select_company_angle(
     except HTTPException:
         return RedirectResponse(url="/login", status_code=303)
     except Exception as exc:
-        fallback_anchors = []
-        try:
-            payload = json.loads((BASE_DIR / "company_anchors.json").read_text(encoding="utf-8"))
-            if isinstance(payload, dict):
-                fallback_anchors = payload.get("anchors", [])
-        except Exception:
-            fallback_anchors = []
-
+        # Only reload angles for an application already verified as this user's, never the raw form value.
+        fallback_anchors = load_anchors(verified_job_id) if verified_job_id else []
         return templates.TemplateResponse("company_angles.html", {
             "request": request,
             "user": app_user_for_request(request),
@@ -683,7 +706,7 @@ async def select_company_angle(
 
 
 @app.post("/cover-letter/revise", response_class=HTMLResponse)
-async def revise_cover_letter(request: Request, job_application_id: str = Form(...), feedback: str = Form("")):
+def revise_cover_letter(request: Request, job_application_id: str = Form(...), feedback: str = Form("")):
     try:
         user = app_user_for_request(request)
     except HTTPException:
@@ -760,7 +783,7 @@ async def revise_cover_letter(request: Request, job_application_id: str = Form(.
 
 
 @app.post("/cover-letter/accept", response_class=HTMLResponse)
-async def accept_cover_letter(request: Request, job_application_id: str = Form(...), cover_letter_id: str = Form(...)):
+def accept_cover_letter(request: Request, job_application_id: str = Form(...), cover_letter_id: str = Form(...)):
     try:
         user = app_user_for_request(request)
     except HTTPException:

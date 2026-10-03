@@ -33,7 +33,6 @@
     backdrop-filter: blur(14px) saturate(1.2);
     -webkit-backdrop-filter: blur(14px) saturate(1.2);
     border-bottom: 1px solid var(--line);
-    view-transition-name: site-header;
 }
 .journey {
     display: flex;

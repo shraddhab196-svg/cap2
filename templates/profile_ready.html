@@ -14,13 +14,17 @@
                 </form>
             </div>
 
-            {% if sp.personal_voice or sp.tone %}
+            {# Keys differ by builder: profile_builder gives tone/sentence_structure/...; style_analyzer adds personal_voice. #}
+            {% set quote = sp.personal_voice or sp.tone %}
+            {% if quote is string and quote %}
             <figure class="voice-card rise" style="--i:4; margin:0">
                 <div class="eyebrow">How you sound</div>
-                {% if sp.personal_voice %}<blockquote class="voice-quote" style="margin-inline:0">{{ sp.personal_voice | truncate(220) }}</blockquote>{% endif %}
+                <blockquote class="voice-quote" style="margin-inline:0">{{ quote | truncate(220) }}</blockquote>
                 <dl class="traits">
-                    {% for key, label in [("tone", "Tone"), ("formality", "Formality"), ("conciseness", "Pace")] %}
-                    {% if sp[key] is string and sp[key] %}
+                    {% set shown = namespace(n=0) %}
+                    {% for key, label in [("tone", "Tone"), ("sentence_structure", "Sentences"), ("opening_style", "Openings"), ("detail_level", "Detail"), ("formality", "Formality"), ("conciseness", "Pace")] %}
+                    {% if shown.n < 3 and sp[key] is string and sp[key] and sp[key] != quote %}
+                    {% set shown.n = shown.n + 1 %}
                     <div><dt>{{ label }}</dt><dd>{{ sp[key] | truncate(140) }}</dd></div>
                     {% endif %}
                     {% endfor %}

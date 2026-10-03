@@ -10,6 +10,11 @@ from dotenv import load_dotenv
 from groq import APIConnectionError, APIStatusError, Groq, RateLimitError
 from pydantic import BaseModel, Field, ValidationError
 
+try:
+    from src.groq_client import make_groq_client
+except ImportError:  # running as a script from inside src/
+    from groq_client import make_groq_client
+
 logger = logging.getLogger(__name__)
 
 
@@ -128,7 +133,7 @@ def get_groq_client() -> Groq:
     api_key = os.getenv("GROQ_API_KEY")
     if not api_key or not api_key.strip():
         raise ValueError("Missing GROQ_API_KEY. Add it to your .env file before running the analyzer.")
-    return Groq(api_key=api_key)
+    return make_groq_client(api_key)
 
 
 def analyze_letters_with_groq(letters: list[tuple[str, str]]) -> StyleProfile:

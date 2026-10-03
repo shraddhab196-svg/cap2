@@ -30,10 +30,20 @@ uvicorn app:app --reload
 
 Open http://localhost:8000.
 
+For more than one process (e.g. `--workers 4`), `SESSION_SECRET` must be set so every worker accepts the same login cookie. Each process runs slow Groq/Supabase calls on up to `WORKER_THREADS` threads (default 100), so one person's letter never blocks anyone else.
+
+### Without any keys
+
+```bash
+python scripts/fake_backend.py
+```
+
+Runs the real app against an in-memory Supabase and a fake Groq that waits `FAKE_LATENCY` seconds (default 3). Sign up with any email. To see the error paths: an email starting with `fail` can't log in, a company URL containing `fail` times out, and a job description containing `FAIL` makes generation fail. Data resets on restart.
+
 ## Tests
 
 ```bash
 python -m pytest
 ```
 
-The evaluator test calls the live Groq API and is skipped without `GROQ_API_KEY`.
+The evaluator test calls the live Groq API and is skipped without `GROQ_API_KEY`. `tests/test_full_journey.py` walks the whole flow (signup to accepted letter) on the fake backend, and `tests/test_traffic_and_isolation.py` checks that slow requests don't block other users and that users never see each other's data.

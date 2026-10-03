@@ -12,6 +12,11 @@ from dotenv import load_dotenv
 from groq import APIConnectionError, APIStatusError, Groq, RateLimitError
 
 try:
+    from src.groq_client import make_groq_client
+except ImportError:  # running as a script from inside src/
+    from groq_client import make_groq_client
+
+try:
     from src import writing_framework
 except ImportError:  # running as a script from inside src/
     import writing_framework
@@ -34,7 +39,7 @@ def get_groq_client() -> Groq:
     api_key = os.getenv("GROQ_API_KEY")
     if not api_key or not api_key.strip():
         raise ValueError("Missing GROQ_API_KEY. Add it to your .env file before running the evaluator.")
-    return Groq(api_key=api_key)
+    return make_groq_client(api_key)
 
 
 def load_json_file(path: Path) -> dict[str, Any]:
