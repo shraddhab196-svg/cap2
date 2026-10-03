@@ -195,7 +195,8 @@ def build_professional_profile(candidate_evidence: dict[str, Any], style_profile
     if skills:
         core_strengths.append(f"core skills across {', '.join(skills[:3])}")
     if tools:
-        core_strengths.append(f"tooling experience including {', '.join([re.sub(r"\s+", " ", str(item)) for item in tools[:3]])}")
+        tool_names = ", ".join(re.sub(r"\s+", " ", str(item)) for item in tools[:3])
+        core_strengths.append(f"tooling experience including {tool_names}")
     if experience:
         core_strengths.append("clear experience leading delivery, implementation, or ownership")
     if achievements:

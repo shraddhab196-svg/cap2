@@ -1,12 +1,18 @@
 import importlib.util
+import os
 import unittest
 from pathlib import Path
 
+from dotenv import load_dotenv
+
 
 MODULE_PATH = Path(__file__).resolve().parents[1] / "src" / "cover_letter_evaluator.py"
+load_dotenv(MODULE_PATH.parents[1] / ".env")
 
 
 class CoverLetterEvaluatorTests(unittest.TestCase):
+    # Calls the live Groq API.
+    @unittest.skipUnless(os.getenv("GROQ_API_KEY"), "GROQ_API_KEY not set")
     def test_module_exists_and_exports_evaluation_function(self):
         self.assertTrue(MODULE_PATH.exists(), "Expected cover_letter_evaluator.py to exist")
 
