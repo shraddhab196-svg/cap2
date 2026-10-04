@@ -75,9 +75,9 @@ class ProfileSetupButtonTests(unittest.TestCase):
         self.assertIn("Needs updating", stale)
 
     def test_header_shows_initials_not_identity_and_explainer_is_removed(self):
-        html = self.render(RESUMES, LETTERS, None, user={**USER, "name": "resham.joshi", "email": "resham.joshi@example.com"})
-        self.assertIn('<span class="avatar">RJ</span>', html)
-        self.assertNotIn("resham.joshi", html)
+        html = self.render(RESUMES, LETTERS, None, user={**USER, "name": "jane.doe", "email": "jane.doe@example.com"})
+        self.assertIn('<span class="avatar">JD</span>', html)
+        self.assertNotIn("jane.doe", html)
         self.assertIn('href="/logout"', html)
         self.assertNotIn("Three grounded outputs", html)
 
@@ -149,11 +149,11 @@ class ProfileSetupButtonTests(unittest.TestCase):
         self.assertIn('href="/profile/setup">Profile Setup</a>', setup_html)
         self.assertIn('href="/logout">Log out</a>', setup_html)
 
-        with patch.object(app, "app_user_for_request", return_value={**USER, "name": "resham.joshi"}), \
+        with patch.object(app, "app_user_for_request", return_value={**USER, "name": "jane.doe"}), \
              patch.object(app, "get_candidate_profile", return_value={"profile": {}}), \
              patch.object(app, "get_style_profile", return_value={"profile": {}}):
             ready_html = self.client.get("/profile/ready").text
-        self.assertIn('<span class="avatar">RJ</span>', ready_html)
+        self.assertIn('<span class="avatar">JD</span>', ready_html)
         self.assertIn('href="/profile/setup">Profile Setup</a>', ready_html)
         self.assertIn('href="/logout">Log out</a>', ready_html)
         self.assertNotIn("Edit profile", ready_html)
