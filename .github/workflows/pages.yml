@@ -1,0 +1,41 @@
+name: Website
+
+# Builds the public site from the app's own templates (scripts/build_site.py) and publishes it to GitHub Pages.
+on:
+  push:
+    branches: [main]
+    paths: [templates/**, static/**, site/**, scripts/build_site.py, .github/workflows/pages.yml]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install jinja2==3.1.6
+      - run: python scripts/build_site.py _site
+        env:
+          # Optional repository variables (Settings > Secrets and variables > Actions > Variables).
+          SITE_URL: ${{ vars.SITE_URL }}
+          APP_URL: ${{ vars.APP_URL }}
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+      - id: deployment
+        uses: actions/deploy-pages@v4

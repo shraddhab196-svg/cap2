@@ -315,9 +315,20 @@ html.lenis, html.lenis body { height: auto; }
     .how-step { width: auto; min-height: 0; }
 }
 @media (max-width: 560px) {
-    .nav-links .nav-link[href="#how"], .nav .brand-name { display: none; }
+    .nav-links .nav-link[href="#how"], .nav-links .nav-link[href="#faq"], .nav .brand-name { display: none; }
     
     .viz-files .doc { width: 104px; height: 132px; }
     .is-active .viz-files .doc:nth-child(1) { transform: translateX(-80px) rotate(-12deg); }
     .is-active .viz-files .doc:nth-child(3) { transform: translateX(80px) rotate(10deg); }
 }
+
+/* ---------- FAQ ---------- */
+.faq { padding-bottom: clamp(100px, 14vw, 180px); }
+.faq-list { border-top: 1px solid var(--ink); }
+.faq details { border-bottom: 1px solid var(--line); }
+.faq summary { list-style: none; cursor: pointer; display: flex; justify-content: space-between; align-items: center; gap: 24px; padding: 24px 0; font-family: var(--f-display); font-size: clamp(1.15rem, 2.2vw, 1.6rem); letter-spacing: -0.015em; }
+.faq summary::-webkit-details-marker { display: none; }
+.faq summary::after { content: "+"; flex: none; font-family: var(--f-mono); font-size: 1.2rem; color: var(--pen); transition: transform var(--t-base) var(--ease-out); }
+.faq details[open] summary::after { transform: rotate(45deg); }
+.faq summary:focus-visible { outline: 2px solid var(--pen); outline-offset: 4px; }
+.faq details p { margin: 0 0 26px; max-width: 64ch; color: var(--ink-soft); }

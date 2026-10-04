@@ -1,0 +1,27 @@
+<!doctype html>
+<!-- Source for static/img/og.png (1200x630) and icon-192.png. Regenerate: see README, Website section. -->
+<html><head><meta charset="utf-8">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300..700;1,9..144,300..700&family=Instrument+Sans:wght@400;600&display=swap">
+<style>
+  html, body { margin: 0; }
+  body { width: 1200px; height: 630px; background: #F4EFE6; color: #1A1714; font-family: "Instrument Sans", sans-serif; position: relative; overflow: hidden; }
+  body.icon { width: 192px; height: 192px; background: #1A1714; }
+  .brand { position: absolute; top: 64px; left: 80px; display: flex; align-items: center; gap: 16px; font-size: 28px; font-weight: 600; }
+  .mark, .icon-mark { width: 52px; height: 52px; border-radius: 14px; background: #1A1714; color: #F4EFE6; display: grid; place-items: center; font-family: "Fraunces", serif; font-style: italic; font-size: 34px; position: relative; }
+  .mark::after, .icon-mark::after { content: ""; position: absolute; width: 9px; height: 9px; border-radius: 50%; background: #D9432B; right: 9px; bottom: 11px; }
+  h1 { position: absolute; left: 80px; top: 170px; max-width: 700px; margin: 0; font-family: "Fraunces", serif; font-weight: 380; font-size: 112px; line-height: 0.95; letter-spacing: -0.045em; }
+  h1 em { color: #D9432B; }
+  p { position: absolute; left: 82px; bottom: 70px; margin: 0; font-size: 30px; color: #5B544B; }
+  .paper { position: absolute; right: 56px; top: 100px; width: 340px; height: 380px; background: #FBF8F2; border-radius: 10px; transform: rotate(6deg); box-shadow: 0 30px 70px -30px rgba(26,23,20,.4); padding: 40px; box-sizing: border-box; font-family: "Fraunces", serif; font-size: 22px; line-height: 1.5; color: #2A2520; }
+  .strike { text-decoration: line-through; text-decoration-color: #D9432B; color: #8C8478; }
+  .red { color: #B8321D; font-style: italic; }
+  .icon-mark { width: 192px; height: 192px; border-radius: 0; font-size: 132px; padding-right: 26px; box-sizing: border-box; }
+  .icon-mark::after { width: 26px; height: 26px; right: 38px; bottom: 50px; }
+</style></head>
+<body>
+  <div class="brand"><span class="mark">c</span>Cover Letter AI</div>
+  <h1>Cover letters,<br>in your own <em>voice.</em></h1>
+  <p>Grounded in your resume. Written the way you write.</p>
+  <div class="paper">Dear Hiring Team,<br><br><span class="strike">I am writing to express my interest in this role.</span> <span class="red">Your post asks for someone who can make alerts trustworthy again.</span></div>
+  <script>if (location.hash === "#icon" || location.search === "?icon") { document.body.className = "icon"; document.body.innerHTML = '<div class="icon-mark">c</div>'; }</script>
+</body></html>

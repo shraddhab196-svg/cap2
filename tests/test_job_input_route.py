@@ -1,20 +1,20 @@
 import json
-import tempfile
 import unittest
 from contextlib import ExitStack
-from pathlib import Path
 from unittest.mock import patch
 
 from fastapi.testclient import TestClient
 
 import app
 
+SAMPLE_ANCHORS = json.loads((app.BASE_DIR / "company_anchors.json").read_text(encoding="utf-8"))["anchors"]
 USER = {"id": "00000000-0000-0000-0000-000000000001", "email": "demo@example.com"}
 JOB_APPLICATION = {
     "id": "job-1",
     "user_id": "00000000-0000-0000-0000-000000000001",
     "job_description": "Senior AI engineer",
     "company_url": "https://example.com",
+    "anchors": SAMPLE_ANCHORS,
 }
 
 
@@ -30,22 +30,12 @@ class JobInputRouteTests(unittest.TestCase):
         self.mock_save_job, self.mock_get_job, self.mock_update_anchor, self.mock_get_chain = [patcher.start() for patcher in job_patchers]
         for patcher in job_patchers:
             self.addCleanup(patcher.stop)
-        # Angles are stored per job application; seed the ids these tests use from the sample payload.
-        anchors_dir = tempfile.TemporaryDirectory()
-        self.addCleanup(anchors_dir.cleanup)
-        dir_patcher = patch.object(app, "ANCHORS_DIR", Path(anchors_dir.name))
-        dir_patcher.start()
-        self.addCleanup(dir_patcher.stop)
-        sample = json.loads((app.BASE_DIR / "company_anchors.json").read_text(encoding="utf-8"))
-        for job_id in ("job-1", "job-A", "job-B"):
-            app.store_anchors(job_id, sample)
 
     def submit_job_input(self):
         with patch.object(app, "app_user_for_request", return_value=USER), \
              patch.object(app, "research_company", return_value={"company_research": "company narrative"}), \
              patch.object(app, "get_cover_letters_for_user", return_value=[{"filename": "letter1.txt", "content": "I led a project"}]), \
-             patch.object(app, "generate_anchors", return_value={"anchors": []}), \
-             patch.object(app, "store_anchors"):
+             patch.object(app, "generate_anchors", return_value={"anchors": []}):
             return self.client.post(
                 "/profile/job-input",
                 data={"job_description": "Senior AI engineer", "company_url": "https://example.com"},
@@ -79,7 +69,6 @@ class JobInputRouteTests(unittest.TestCase):
              patch.object(app, "research_company", return_value={"company_research": "company narrative"}) as mock_research, \
              patch.object(app, "get_cover_letters_for_user", return_value=[{"filename": "letter1.txt", "content": "I led a project"}]) as mock_letters, \
              patch.object(app, "generate_anchors", return_value={"company_url": "https://example.com", "anchors": [{"title": "Example anchor"}]}) as mock_generate, \
-             patch.object(app, "store_anchors") as mock_save_json, \
              patch.object(app, "get_candidate_profile", return_value=None), \
              patch.object(app, "get_style_profile", return_value=None):
             response = self.client.post(
@@ -95,8 +84,8 @@ class JobInputRouteTests(unittest.TestCase):
         self.assertEqual(response.headers.get("location"), "/company/angles")
         self.assertEqual(mock_research.call_count, 1)
         self.assertEqual(mock_generate.call_count, 1)
-        self.assertEqual(mock_save_json.call_count, 1)
         self.assertEqual(self.mock_save_job.call_count, 1)
+        self.assertEqual(self.mock_save_job.call_args.kwargs["anchors"], [{"title": "Example anchor"}])
         self.assertEqual(mock_letters.call_count, 1)
         self.assertEqual(mock_generate.call_args.kwargs["letters"], [("letter1.txt", "I led a project")])
 
@@ -184,6 +173,7 @@ class JobInputRouteTests(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(self.mock_save_job.call_count, 1)
         self.assertEqual(self.mock_save_job.call_args.args[1:3], ("Senior AI engineer", "https://example.com"))
+        self.assertEqual(self.mock_save_job.call_args.kwargs["anchors"], SAMPLE_ANCHORS)  # angles carry over to the new application
         self.assertEqual(self.mock_update_anchor.call_args.args[1], "job-C")
         self.assertEqual(mock_save_letter.call_count, 1)
         self.assertEqual(mock_save_letter.call_args.kwargs["job_application_id"], "job-C")

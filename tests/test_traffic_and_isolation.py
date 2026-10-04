@@ -1,6 +1,4 @@
-import json
 import socket
-import tempfile
 import threading
 import time
 import unittest
@@ -14,21 +12,20 @@ from fastapi.testclient import TestClient
 import app
 
 
-def job(job_id):
-    return {"id": job_id, "job_description": "Senior AI engineer", "company_url": "https://example.com"}
-
-
 class AngleIsolationTests(unittest.TestCase):
+    """Angles are saved on each user's own job application row, never in a shared file or on local disk."""
+
     def setUp(self):
-        anchors_dir = tempfile.TemporaryDirectory()
-        self.addCleanup(anchors_dir.cleanup)
-        patcher = patch.object(app, "ANCHORS_DIR", Path(anchors_dir.name))
-        patcher.start()
-        self.addCleanup(patcher.stop)
+        self.rows = {}
+
+    def save_job(self, user_id, job_description, company_url, *, anchors=None, **_):
+        job_id = f"job-{user_id}"
+        self.rows[job_id] = {"id": job_id, "job_description": "Senior AI engineer", "company_url": company_url, "anchors": anchors}
+        return self.rows[job_id]
 
     def submit_job(self, client, job_id, angle_title):
-        with patch.object(app, "app_user_for_request", return_value={"id": f"user-{job_id}", "email": "x@example.com"}), \
-             patch.object(app, "save_job_application", return_value=job(job_id)), \
+        with patch.object(app, "app_user_for_request", return_value={"id": job_id.removeprefix("job-"), "email": "x@example.com"}), \
+             patch.object(app, "save_job_application", side_effect=self.save_job), \
              patch.object(app, "research_company", return_value={"company_research": "notes"}), \
              patch.object(app, "get_cover_letters_for_user", return_value=[{"filename": "l.txt", "content": "text"}]), \
              patch.object(app, "generate_anchors", return_value={"anchors": [{"title": angle_title}]}):
@@ -36,7 +33,7 @@ class AngleIsolationTests(unittest.TestCase):
 
     def angles_page(self, client, job_id):
         with patch.object(app, "app_user_for_request", return_value={"id": f"user-{job_id}", "email": "x@example.com"}), \
-             patch.object(app, "get_job_application", return_value=job(job_id)):
+             patch.object(app, "get_job_application", return_value=self.rows.get(job_id)):
             return client.get("/company/angles").text
 
     def test_two_users_never_see_each_others_angles(self):
@@ -49,12 +46,10 @@ class AngleIsolationTests(unittest.TestCase):
         self.assertIn("Bob&#39;s angle", bob_page)
         self.assertNotIn("Alice", bob_page)
 
-    def test_job_ids_cannot_escape_the_angles_folder(self):
-        for bad_id in ("../app", "..\app", "a/b", "", "x" * 65):
-            with self.subTest(bad_id=bad_id):
-                with self.assertRaises(ValueError):
-                    app.anchors_path(bad_id)
-                self.assertEqual(app.load_anchors(bad_id), [])
+    def test_missing_or_malformed_angles_load_as_empty(self):
+        for row in (None, {}, {"anchors": None}, {"anchors": "not a list"}):
+            with self.subTest(row=row):
+                self.assertEqual(app.load_anchors(row), [])
 
 
 class TrafficTests(unittest.TestCase):

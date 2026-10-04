@@ -53,6 +53,18 @@ python scripts/fake_backend.py
 
 Runs the real app against an in-memory Supabase and a fake Groq that waits `FAKE_LATENCY` seconds (default 3). Sign up with any email. To see the error paths: an email starting with `fail` can't log in, a company URL containing `fail` times out, and a job description containing `FAIL` makes generation fail. Data resets on restart.
 
+## Website
+
+The public site (landing, privacy, terms, imprint, 404) is built from the app's own templates and published to GitHub Pages by `.github/workflows/pages.yml` on every push to `main`.
+
+```bash
+python scripts/build_site.py
+```
+
+Writes `_site/`. Company details for the legal pages live in `site/config.json`; until they're filled in, the pages show "to be added". The repository variables `SITE_URL` and `APP_URL` override the URLs there (e.g. once the app has its real address). `static/img/og.png` (the link preview card) and `icon-192.png` are screenshots of `site/og.html`: open it in Chrome headless with `--window-size=1200,630 --screenshot` (append `?icon` and use 192x192 for the icon).
+
+One-time setup, by a repository admin: Settings > Pages > Source: **GitHub Actions**.
+
 ## Tests
 
 ```bash

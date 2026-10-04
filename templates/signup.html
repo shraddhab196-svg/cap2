@@ -14,4 +14,5 @@
                         </ul>
 {% endblock %}
 {% block submit %}Sign up{% endblock %}
-{% block switch %}Already have an account? <a class="link" href="/login">Log in</a>{% endblock %}
+{% block switch %}Already have an account? <a class="link" href="/login">Log in</a>
+                <span class="legal-note">By signing up you agree to the <a class="link" href="{{ url('/terms') }}">Terms</a> and <a class="link" href="{{ url('/privacy') }}">Privacy Policy</a>.</span>{% endblock %}

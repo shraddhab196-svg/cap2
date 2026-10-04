@@ -1,0 +1,30 @@
+{% extends "legal.html" %}
+{% block title %}Terms of service{% endblock %}
+{% block heading %}Terms of service{% endblock %}
+{% block legal %}
+        <p class="legal-lede">These terms cover your use of Cover Letter AI. By creating an account, you agree to them.</p>
+
+        <h2>1. The service</h2>
+        <p>Cover Letter AI drafts cover letters from documents you provide. It's currently a free beta: features may change, and we can't promise it will always be available.</p>
+
+        <h2>2. Your account</h2>
+        <p>You need to be at least 16 and use an email address you control. Keep your password to yourself; you're responsible for what happens in your account.</p>
+
+        <h2>3. Your content</h2>
+        <p>What you upload and the letters we draft for you are yours. You give us permission to store and process them only to provide the service, as described in the <a class="link" href="{{ url('/privacy') }}">privacy policy</a>. Only upload documents you have the right to use, and don't upload other people's personal data beyond what's naturally in your own resume and letters.</p>
+
+        <h2>4. AI drafts</h2>
+        <p>Drafts are written by an AI model. We work hard to keep them accurate and grounded in your own documents, but they can still contain mistakes. Read every draft before you send it; what you send is up to you.</p>
+
+        <h2>5. Fair use</h2>
+        <p>Don't misuse the service. That includes trying to break or overload it, getting into other people's accounts, scraping or automated bulk use, or using it for anything illegal. We may suspend accounts that do.</p>
+
+        <h2>6. Liability</h2>
+        <p>The beta is provided free of charge and as is. We're liable without limit for intent and gross negligence, and for injury to life, body, or health. Otherwise, we're liable only for breaches of essential obligations, limited to the damage that was foreseeable. Nothing here limits liability where the law doesn't allow it.</p>
+
+        <h2>7. Ending</h2>
+        <p>You can stop using the service at any time and ask us to delete your account at {{ todo(site.contact_email, "Contact email") }}. If we ever shut the service down, we'll give you notice and a chance to download your letters first.</p>
+
+        <h2>8. Changes and law</h2>
+        <p>If we change these terms in a way that matters, we'll tell you in the app before the change takes effect. These terms are governed by the law of {{ todo(site.governing_law, "Country") }}, without taking away any protection the law of your country gives you as a consumer.</p>
+{% endblock %}

@@ -1,9 +1,12 @@
 from __future__ import annotations
 
+import ipaddress
 import logging
 import re
+import socket
 from pathlib import Path
 from typing import Any
+from urllib.parse import urljoin, urlsplit
 
 import requests
 from bs4 import BeautifulSoup
@@ -22,13 +25,41 @@ def load_environment() -> None:
         load_dotenv()
 
 
+MAX_REDIRECTS = 5
+
+
+def check_public_url(url: str) -> None:
+    """Refuse URLs that point at the server itself or a private network (SSRF): users type these URLs."""
+    parts = urlsplit(url)
+    if parts.scheme not in ("http", "https") or not parts.hostname:
+        raise ValueError(f"Invalid company URL: {url}")
+    try:
+        addresses = {info[4][0] for info in socket.getaddrinfo(parts.hostname, parts.port or 443, proto=socket.IPPROTO_TCP)}
+    except (socket.gaierror, UnicodeError, ValueError) as exc:
+        raise ValueError(f"Could not find the company website: {url}") from exc
+    for address in addresses:
+        if not ipaddress.ip_address(address.split("%")[0]).is_global:
+            raise ValueError(f"That address is not a public website: {url}")
+
+
 def fetch_company_html(company_url: str, timeout: int = 15) -> str:
     """Fetch the company website HTML with basic validation and timeout handling."""
     if not company_url or not company_url.strip():
         raise ValueError("Company URL is required.")
 
     try:
-        response = requests.get(company_url, timeout=timeout)
+        # Follow redirects by hand so every hop gets the same public-address check.
+        # ponytail: checks DNS before connecting; a DNS-rebinding attacker could still swap the address in between.
+        # Pin the resolved IP in the connection if this app ever runs next to sensitive internal services.
+        url = company_url.strip()
+        for _ in range(MAX_REDIRECTS + 1):
+            check_public_url(url)
+            response = requests.get(url, timeout=timeout, allow_redirects=False)
+            if not response.is_redirect:
+                break
+            url = urljoin(url, response.headers["location"])
+        else:
+            raise RuntimeError(f"Too many redirects while fetching the company website: {company_url}")
         response.raise_for_status()
     except requests.exceptions.MissingSchema as exc:
         raise ValueError(f"Invalid company URL: {company_url}") from exc
