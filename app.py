@@ -9,6 +9,7 @@ import re
 import secrets
 import threading
 import time
+from datetime import datetime, timedelta, timezone
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -20,13 +21,14 @@ from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
+from pydantic import ValidationError as PydanticValidationError
 from starlette.exceptions import HTTPException as StarletteHTTPException
 from starlette.middleware.sessions import SessionMiddleware
 from supabase import create_client
 
 from src.anchor_generator import generate_anchors
 from src.company_researcher import research_company
-from src.cover_letter_generator import generate_cover_letter, generate_cover_letter_revision
+from src.cover_letter_generator import extract_candidate_name, generate_cover_letter, generate_cover_letter_revision
 from src.database import (
     delete_all_resumes_for_user,
     delete_cover_letter_for_user,
@@ -35,6 +37,7 @@ from src.database import (
     get_job_application,
     get_or_create_app_user,
     get_candidate_profile,
+    count_recent_ai_actions,
     get_cover_letters_for_user,
     get_resumes_for_user,
     get_style_profile,
@@ -47,6 +50,7 @@ from src.database import (
     save_style_profile,
     update_job_application_anchor,
 )
+from src.llm_client import LLMError
 from src.profile_builder import (
     MAX_COVER_LETTERS,
     MIN_COVER_LETTERS,
@@ -82,7 +86,8 @@ if not SESSION_SECRET:
     # ponytail: per-process random key, so logins reset on restart and don't work across multiple workers. Set SESSION_SECRET in any real deployment.
     SESSION_SECRET = secrets.token_urlsafe(32)
     logging.getLogger(__name__).warning("SESSION_SECRET is not set; using a random key. Sessions will not survive a restart.")
-app.add_middleware(SessionMiddleware, secret_key=SESSION_SECRET)
+# On an https deployment (APP_URL set) the login cookie is never sent over plain http.
+app.add_middleware(SessionMiddleware, secret_key=SESSION_SECRET, https_only=os.getenv("APP_URL", "").startswith("https://"))
 app.mount("/static", StaticFiles(directory=str(BASE_DIR / "static")), name="static")
 templates = Jinja2Templates(directory=str(BASE_DIR / "templates"))
 # Templates build links through url()/asset() so scripts/build_site.py can render the same pages for GitHub Pages.
@@ -99,6 +104,38 @@ ERROR_COPY = {
     404: ("This page isn't in the draft.", "The link may be old, or the page moved. Nothing you did is lost."),
     500: ("Something smudged the ink.", "That one's on us, not you. Give it a moment and try again."),
 }
+
+
+CONTENT_SECURITY_POLICY = "; ".join([
+    "default-src 'self'",
+    # 'unsafe-inline': the templates use a few small inline scripts and style="--i:0" attributes.
+    "script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net",
+    "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
+    "font-src https://fonts.gstatic.com",
+    "img-src 'self' data:",
+    "connect-src 'self'",
+    "form-action 'self'",
+    "base-uri 'self'",
+    "object-src 'none'",
+    "frame-ancestors 'none'",
+])
+
+
+@app.middleware("http")
+async def security_headers(request: Request, call_next):
+    response = await call_next(request)
+    response.headers.setdefault("Content-Security-Policy", CONTENT_SECURITY_POLICY)
+    response.headers.setdefault("X-Frame-Options", "DENY")  # no clickjacking via an invisible iframe
+    response.headers.setdefault("X-Content-Type-Options", "nosniff")
+    response.headers.setdefault("Referrer-Policy", "strict-origin-when-cross-origin")
+    response.headers.setdefault("Permissions-Policy", "camera=(), microphone=(), geolocation=()")
+    if os.getenv("APP_URL", "").startswith("https://"):
+        response.headers.setdefault("Strict-Transport-Security", "max-age=31536000")
+    if "session" in request.cookies and not request.url.path.startswith("/static/"):
+        # Signed-in pages hold letters and resume details: keep them out of the browser cache,
+        # so the back button on a shared computer can't show them after logout.
+        response.headers["Cache-Control"] = "no-store"
+    return response
 
 
 @app.middleware("http")
@@ -291,6 +328,39 @@ def friendly_auth_error(exc: Exception) -> str:
     return "Something went wrong. Please try again in a moment."
 
 
+# Open signup means anyone can spend our Groq credits; each job lookup or draft costs several LLM calls.
+DAILY_AI_LIMIT = int(os.getenv("DAILY_AI_LIMIT", "40"))
+
+
+def enforce_daily_limit(request: Request, user_id: str) -> None:
+    """Refuse a new job lookup, draft or revision once a user has made DAILY_AI_LIMIT of them in 24 hours (0 = off).
+
+    ponytail: counts the user's own rows, which RLS lets them delete through the API to reset the count.
+    Move to a server-side counter table if that's ever abused.
+    """
+    if DAILY_AI_LIMIT <= 0:
+        return
+    access_token, refresh_token = get_request_session_tokens(request)
+    since = datetime.now(timezone.utc) - timedelta(days=1)
+    if count_recent_ai_actions(user_id, since, access_token=access_token, refresh_token=refresh_token) >= DAILY_AI_LIMIT:
+        raise ValueError(f"You've reached today's limit of {DAILY_AI_LIMIT} job lookups and drafts. Please try again tomorrow.")
+
+
+GENERIC_ERROR = "Something went wrong on our side. Please try again in a moment."
+
+
+def user_error(exc: Exception) -> str:
+    """Our own messages (ValueError, timeouts, LLMError) are written for users; anything else is logged, not shown.
+
+    Library errors can carry SQL, table names, URLs or provider ids, so they never reach the page.
+    """
+    library_value_errors = (json.JSONDecodeError, UnicodeError, PydanticValidationError)
+    if isinstance(exc, (ValueError, TimeoutError, LLMError)) and not isinstance(exc, library_value_errors):
+        return str(exc)
+    logging.getLogger(__name__).error("request failed: %s", type(exc).__name__, exc_info=exc)
+    return GENERIC_ERROR
+
+
 def profile_materials_fingerprint(resumes: list[dict[str, Any]], cover_letters: list[dict[str, Any]]) -> str:
     """Identify the exact resume/cover-letter set (ids and text) a profile was built from."""
     parts = sorted(f"resume:{row.get('id')}:{row.get('extracted_text') or ''}" for row in resumes)
@@ -444,8 +514,15 @@ def login(request: Request, email: str = Form(...), password: str = Form(...)):
 
 
 @app.get("/logout")
-async def logout(request: Request):
+def logout(request: Request):
+    access_token = request.session.get("access_token")
     request.session.clear()
+    if access_token:
+        # Revoke this login's refresh token at Supabase too, so a copied session cookie stops working.
+        try:
+            get_supabase_client().auth.admin.sign_out(access_token, "local")
+        except Exception as exc:
+            logging.getLogger(__name__).info("sign-out at Supabase failed (session cleared locally anyway): %s", type(exc).__name__)
     return RedirectResponse(url="/login", status_code=303)
 
 
@@ -493,7 +570,7 @@ def upload_resume(request: Request, resume: UploadFile = File(None)):
         return RedirectResponse(url="/profile/setup", status_code=303)
     except Exception as exc:
         try:
-            return render_profile_setup(request, app_user_for_request(request), error=str(exc))
+            return render_profile_setup(request, app_user_for_request(request), error=user_error(exc))
         except HTTPException:
             return RedirectResponse(url="/login", status_code=303)
 
@@ -537,7 +614,7 @@ def upload_cover_letters(request: Request, files: list[UploadFile] = File(...)):
         return RedirectResponse(url="/profile/setup", status_code=303)
     except Exception as exc:
         try:
-            return render_profile_setup(request, app_user_for_request(request), error=str(exc))
+            return render_profile_setup(request, app_user_for_request(request), error=user_error(exc))
         except HTTPException:
             return RedirectResponse(url="/login", status_code=303)
 
@@ -579,7 +656,7 @@ def build_profile(request: Request):
         return RedirectResponse(url="/profile/ready", status_code=303)
     except Exception as exc:
         try:
-            return render_profile_setup(request, app_user_for_request(request), error=str(exc))
+            return render_profile_setup(request, app_user_for_request(request), error=user_error(exc))
         except HTTPException:
             return RedirectResponse(url="/login", status_code=303)
 
@@ -635,6 +712,7 @@ def submit_job_input(request: Request, job_description: str = Form(...), company
 
         user_id = str(user["id"])
         access_token, refresh_token = get_request_session_tokens(request)
+        enforce_daily_limit(request, user_id)
         company_research = research_company(company_url_value)
         # Use this user's uploaded cover letters (the local extracted_letters folder held 8 letters and pushed
         # the anchor request over Groq's 7000 input-token limit).
@@ -675,7 +753,7 @@ def submit_job_input(request: Request, job_description: str = Form(...), company
                 "user": user,
                 "job_description": job_description or "",
                 "company_url": company_url or "",
-                "error": str(exc),
+                "error": user_error(exc),
             })
         except HTTPException:
             return RedirectResponse(url="/login", status_code=303)
@@ -687,7 +765,7 @@ def submit_job_input(request: Request, job_description: str = Form(...), company
                 "user": user,
                 "job_description": job_description or "",
                 "company_url": company_url or "",
-                "error": str(exc),
+                "error": user_error(exc),
             })
         except HTTPException:
             return RedirectResponse(url="/login", status_code=303)
@@ -766,6 +844,7 @@ def select_company_angle(
             raise ValueError("No company angles were found for this application. Please go back to Job Input and generate angles again.")
         if selected_index < 0 or selected_index >= len(anchors):
             raise ValueError("The selected angle is outside the generated list.")
+        enforce_daily_limit(request, user_id)
 
         jd = (job_application.get("job_description") or "").strip()
         company_url_value = (job_application.get("company_url") or "").strip()
@@ -793,6 +872,8 @@ def select_company_angle(
         ]
         if not previous_letters:
             raise ValueError("No previous cover-letter evidence is available for this user.")
+        resume_rows = get_resumes_for_user(user_id, access_token=access_token, refresh_token=refresh_token)
+        candidate_name = extract_candidate_name(resume_rows[0].get("extracted_text") if resume_rows else None)
 
         job_application_id = str(job_application["id"])
         existing_chain = get_generated_cover_letters_for_job(user_id, job_application_id, access_token=access_token, refresh_token=refresh_token)
@@ -817,6 +898,7 @@ def select_company_angle(
             style_profile=style_profile,
             previous_letters=previous_letters,
             company_url=company_url_value,
+            candidate_name=candidate_name,
         )
 
         saved_letter = save_generated_cover_letter(
@@ -844,7 +926,7 @@ def select_company_angle(
             "job_description": job_description or request.session.get("job_description") or "",
             "job_application_id": request.session.get("job_application_id") or job_application_id or "",
             "anchors": fallback_anchors,
-            "error": str(exc),
+            "error": user_error(exc),
         })
 
 
@@ -877,6 +959,7 @@ def revise_cover_letter(request: Request, job_application_id: str = Form(...), f
         feedback_text = (feedback or "").strip()
         if not feedback_text:
             raise ValueError("Please enter feedback before requesting a revision.")
+        enforce_daily_limit(request, user_id)
 
         selected_anchor = job_application.get("selected_anchor")
         if not isinstance(selected_anchor, dict) or not selected_anchor:
@@ -922,7 +1005,7 @@ def revise_cover_letter(request: Request, job_application_id: str = Form(...), f
         chain.append({**saved_letter, "content": revised_letter, "revision_number": new_revision_number, "is_final": False, "feedback": feedback_text})
         return render_cover_letter_page(request, user, job_application_id, chain)
     except Exception as exc:
-        return render_cover_letter_page(request, user, job_application_id, chain, error=str(exc))
+        return render_cover_letter_page(request, user, job_application_id, chain, error=user_error(exc))
 
 
 @app.post("/cover-letter/accept", response_class=HTMLResponse)
@@ -945,7 +1028,7 @@ def accept_cover_letter(request: Request, job_application_id: str = Form(...), c
             record["is_final"] = str(record.get("id")) == cover_letter_id
         return render_cover_letter_page(request, user, job_application_id, chain)
     except Exception as exc:
-        return render_cover_letter_page(request, user, job_application_id, chain, error=str(exc))
+        return render_cover_letter_page(request, user, job_application_id, chain, error=user_error(exc))
 
 
 if __name__ == "__main__":

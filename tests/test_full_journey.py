@@ -70,8 +70,10 @@ class FullJourneyTests(unittest.TestCase):
         self.assert_page(research_down, "Request timed out while fetching the company website")
 
         angles = self.client.post("/profile/job-input", data={"job_description": "FAIL please", "company_url": "https://example.com"})
-        groq_down = self.client.post("/company/angles", data={"selected_anchor": "0", "job_application_id": hidden(angles.text, "job_application_id")})
-        self.assert_page(groq_down, "Groq API is unavailable", "Generated angles")
+        with self.assertLogs("app", "ERROR"):
+            groq_down = self.client.post("/company/angles", data={"selected_anchor": "0", "job_application_id": hidden(angles.text, "job_application_id")})
+        groq_html = self.assert_page(groq_down, app.GENERIC_ERROR, "Generated angles")
+        self.assertNotIn("Groq API is unavailable", groq_html)  # unexpected errors are logged, never shown
 
         angles = self.client.post("/profile/job-input", data={"job_description": "BUSY role", "company_url": "https://example.com"})
         busy = self.client.post("/company/angles", data={"selected_anchor": "0", "job_application_id": hidden(angles.text, "job_application_id")})

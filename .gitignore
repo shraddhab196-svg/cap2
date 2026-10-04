@@ -20,3 +20,9 @@ generated/
 
 # Built website (scripts/build_site.py)
 _site/
+
+# Personal documents used by the command-line scripts: never commit these
+cover_letters/
+job_description.txt
+company_anchors.json
+generated_cover_letter*.txt

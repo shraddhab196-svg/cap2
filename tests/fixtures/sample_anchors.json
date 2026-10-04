@@ -1,0 +1,29 @@
+{
+  "company_url": "https://northwind.example",
+  "anchors": [
+    {
+      "title": "Alerts people trust",
+      "company_evidence": "Northwind's engineering blog says on-call noise is the main thing slowing its forecasting team down.",
+      "job_connection": "The role owns model reliability and alerting across the forecasting stack.",
+      "candidate_evidence": "Rebuilt a monitoring pipeline around precision and cut false alerts by 30%.",
+      "anchor": "Jane has already turned a noisy alerting setup into one the on-call team trusts, which is the problem this role exists to solve.",
+      "source_url": "https://northwind.example/blog/on-call"
+    },
+    {
+      "title": "Research to production",
+      "company_evidence": "Northwind ships its forecasting models from research notebooks to production every quarter.",
+      "job_connection": "The role takes prototypes through testing, deployment and monitoring.",
+      "candidate_evidence": "Took two anomaly-detection prototypes from notebook to a Dockerised service on AWS.",
+      "anchor": "Jane has carried models across the gap from notebook to production, the path Northwind runs every quarter.",
+      "source_url": "https://northwind.example/about"
+    },
+    {
+      "title": "Small team, big surface",
+      "company_evidence": "Northwind's ML platform team is four people supporting every product line.",
+      "job_connection": "The role works across teams with little hand-holding.",
+      "candidate_evidence": "Led a team of four that owned the data pipelines for three products.",
+      "anchor": "Jane is used to a small team owning a wide surface, which is how Northwind's platform team works.",
+      "source_url": "https://northwind.example/careers"
+    }
+  ]
+}

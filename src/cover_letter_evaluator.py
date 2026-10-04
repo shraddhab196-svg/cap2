@@ -373,7 +373,7 @@ def evaluate_cover_letter(
     try:
         payload = json.loads(cleaned)
     except json.JSONDecodeError as exc:
-        logger.error("ERROR: Groq returned invalid JSON content.\nRAW GROQ RESPONSE:\n%s", raw_content)
+        logger.error("Groq returned invalid JSON content (%d characters).", len(raw_content))
         raise ValueError("Groq returned invalid JSON content.") from exc
 
     if not isinstance(payload, dict):
