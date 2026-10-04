@@ -2,13 +2,14 @@ from __future__ import annotations
 
 import hashlib
 import json
+import logging
 import os
 from pathlib import Path
 from typing import Any
 
 from dotenv import load_dotenv
 from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
-from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.responses import HTMLResponse, RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from starlette.middleware.sessions import SessionMiddleware
@@ -29,6 +30,7 @@ from src.database import (
     get_resumes_for_user,
     get_style_profile,
     mark_generated_cover_letter_final,
+    save_letter_satisfaction,
     save_candidate_profile,
     save_cover_letter,
     save_generated_cover_letter,
@@ -37,10 +39,12 @@ from src.database import (
     save_style_profile,
     update_job_application_anchor,
 )
+from src.letter_pdf import build_cover_letter_pdf
 from src.profile_builder import (
     MAX_COVER_LETTERS,
     MIN_COVER_LETTERS,
     build_profile_bundle,
+    extract_candidate_name,
     read_uploaded_text,
     validate_cover_letters,
 )
@@ -53,6 +57,7 @@ load_dotenv()
 
 BASE_DIR = Path(__file__).resolve().parent
 MAX_REVISIONS = 3
+logger = logging.getLogger(__name__)
 app = FastAPI(title="Cover Letter AI Profile Builder")
 app.add_middleware(SessionMiddleware, secret_key=os.getenv("SESSION_SECRET", "cover-letter-ai-dev-secret"))
 app.mount("/static", StaticFiles(directory=str(BASE_DIR / "static")), name="static")
@@ -104,6 +109,15 @@ def app_user_for_request(request: Request) -> dict[str, Any]:
     return app_user
 
 
+def candidate_name_for_user(user_id: str, access_token: str | None, refresh_token: str | None) -> str | None:
+    """Candidate name from the authenticated user's own resume (server-side, user-scoped); None if not identifiable."""
+    for resume in get_resumes_for_user(user_id, access_token=access_token, refresh_token=refresh_token):
+        name = extract_candidate_name(str(resume.get("extracted_text") or ""))
+        if name:
+            return name
+    return None
+
+
 def profile_materials_fingerprint(resumes: list[dict[str, Any]], cover_letters: list[dict[str, Any]]) -> str:
     """Identify the exact resume/cover-letter set (ids and text) a profile was built from."""
     parts = sorted(f"resume:{row.get('id')}:{row.get('extracted_text') or ''}" for row in resumes)
@@ -137,7 +151,7 @@ def build_profile_status(request: Request, user_id: str) -> dict[str, Any]:
     }
 
 
-def render_cover_letter_page(request: Request, user: dict[str, Any], job_application_id: str, chain: list[dict[str, Any]], error: str | None = None):
+def render_cover_letter_page(request: Request, user: dict[str, Any], job_application_id: str, chain: list[dict[str, Any]], error: str | None = None, *, dialog_step: str | None = None, feedback_draft: str = ""):
     """Render the letter page for a job's revision chain (ordered oldest revision first)."""
     current = chain[-1] if chain else None
     final_letter = next((record for record in chain if record.get("is_final")), None)
@@ -154,6 +168,13 @@ def render_cover_letter_page(request: Request, user: dict[str, Any], job_applica
         "is_final": final_letter is not None,
         "can_revise": bool(current) and final_letter is None and revision_number < MAX_REVISIONS,
         "feedback_history": [record["feedback"] for record in chain if record.get("feedback")],
+        # After the last revision the page asks whether the user is satisfied (answer stored on the current letter).
+        "satisfaction_due": bool(current) and revision_number >= MAX_REVISIONS,
+        # Latest saved answer anywhere in the chain (like is_final above), so it is found even if rows tie on revision_number.
+        "satisfaction": next((record["satisfaction"] for record in reversed(chain) if record.get("satisfaction")), None),
+        # Keeps a failed NO submission recoverable: reopen the feedback step with the user's text.
+        "dialog_step": dialog_step,
+        "feedback_draft": feedback_draft,
         "error": error,
     })
 
@@ -608,6 +629,7 @@ async def select_company_angle(
             style_profile=style_profile,
             previous_letters=previous_letters,
             company_url=company_url_value,
+            candidate_name=candidate_name_for_user(user_id, access_token, refresh_token),
         )
 
         saved_letter = save_generated_cover_letter(
@@ -702,6 +724,7 @@ async def revise_cover_letter(request: Request, job_application_id: str = Form(.
             previous_letters=previous_letters,
             company_url=str(job_application.get("company_url") or ""),
             feedback_history=[record["feedback"] for record in chain if record.get("feedback")],
+            candidate_name=candidate_name_for_user(user_id, access_token, refresh_token),
         )
 
         new_revision_number = revision_number + 1
@@ -743,6 +766,95 @@ async def accept_cover_letter(request: Request, job_application_id: str = Form(.
         return render_cover_letter_page(request, user, job_application_id, chain)
     except Exception as exc:
         return render_cover_letter_page(request, user, job_application_id, chain, error=str(exc))
+
+
+@app.get("/cover-letter", response_class=HTMLResponse)
+async def view_cover_letter(request: Request):
+    """Show the current workflow's letter chain (id from the session, never the URL) so refreshes keep their state."""
+    try:
+        user = app_user_for_request(request)
+    except HTTPException:
+        return RedirectResponse(url="/login", status_code=303)
+
+    job_application_id = request.session.get("job_application_id")
+    if not job_application_id:
+        return RedirectResponse(url="/profile/job-input", status_code=303)
+    access_token, refresh_token = get_request_session_tokens(request)
+    chain = get_generated_cover_letters_for_job(str(user["id"]), job_application_id, access_token=access_token, refresh_token=refresh_token)
+    if not chain:
+        return RedirectResponse(url="/company/angles", status_code=303)
+    return render_cover_letter_page(request, user, job_application_id, chain)
+
+
+@app.post("/cover-letter/satisfaction", response_class=HTMLResponse)
+async def submit_satisfaction(request: Request, job_application_id: str = Form(...), satisfied: str = Form(...), feedback: str = Form("")):
+    """Post-revision satisfaction: YES accepts the current letter as final; NO stores product feedback (no new revision)."""
+    try:
+        user = app_user_for_request(request)
+    except HTTPException:
+        return RedirectResponse(url="/login", status_code=303)
+
+    chain: list[dict[str, Any]] = []
+    try:
+        user_id = str(user["id"])
+        access_token, refresh_token = get_request_session_tokens(request)
+        chain = get_generated_cover_letters_for_job(user_id, job_application_id, access_token=access_token, refresh_token=refresh_token)
+        if not chain:
+            raise ValueError("No generated cover letter exists for this job application yet.")
+        current = chain[-1]
+        if int(current.get("revision_number") or 0) < MAX_REVISIONS:
+            raise ValueError("This question is only available after the final revision.")
+        current_id = str(current["id"])
+
+        if satisfied == "yes":
+            save_letter_satisfaction(user_id, current_id, "satisfied", None, access_token=access_token, refresh_token=refresh_token)
+            mark_generated_cover_letter_final(user_id, job_application_id, current_id, access_token=access_token, refresh_token=refresh_token)
+        elif satisfied == "no":
+            feedback_text = (feedback or "").strip()
+            if not feedback_text:
+                raise ValueError("Please write your feedback before submitting.")
+            save_letter_satisfaction(user_id, current_id, "not_satisfied", feedback_text, access_token=access_token, refresh_token=refresh_token)
+        else:
+            raise ValueError("Please choose Yes or No.")
+
+        request.session["job_application_id"] = job_application_id
+        return RedirectResponse(url="/cover-letter", status_code=303)
+    except Exception as exc:
+        if isinstance(exc, ValueError):
+            message = str(exc)
+        else:
+            logger.exception("Saving the post-revision satisfaction response failed.")
+            message = "We couldn't save your response. Please try again."
+        retry_feedback = satisfied == "no"
+        return render_cover_letter_page(
+            request, user, job_application_id, chain, error=message,
+            dialog_step="feedback" if retry_feedback else None,
+            feedback_draft=feedback if retry_feedback else "",
+        )
+
+
+@app.get("/cover-letter/pdf")
+async def download_cover_letter_pdf(request: Request):
+    """Download the accepted (final) letter of the current workflow as a PDF."""
+    try:
+        user = app_user_for_request(request)
+    except HTTPException:
+        return RedirectResponse(url="/login", status_code=303)
+
+    job_application_id = request.session.get("job_application_id")
+    if not job_application_id:
+        return RedirectResponse(url="/profile/job-input", status_code=303)
+    access_token, refresh_token = get_request_session_tokens(request)
+    chain = get_generated_cover_letters_for_job(str(user["id"]), job_application_id, access_token=access_token, refresh_token=refresh_token)
+    final_letter = next((record for record in chain if record.get("is_final")), None)
+    if not final_letter:
+        return RedirectResponse(url="/cover-letter", status_code=303)
+
+    return Response(
+        content=build_cover_letter_pdf(str(final_letter.get("content") or "")),
+        media_type="application/pdf",
+        headers={"Content-Disposition": 'attachment; filename="cover_letter.pdf"'},
+    )
 
 
 if __name__ == "__main__":

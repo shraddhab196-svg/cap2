@@ -147,12 +147,27 @@ def trim_evidence_snippet(text: str, limit: int = 500) -> str:
     return f"{trimmed} ... [truncated]"
 
 
+def candidate_identity_lines(candidate_name: str | None) -> tuple[str, str]:
+    """Return (identity line, sign-off rule) built only from the current user's own candidate name, if known."""
+    if candidate_name:
+        return (
+            f"Candidate identity: {candidate_name}. Use only this candidate's own supplied information.",
+            f"Sign the letter with the candidate's name exactly as: {candidate_name}",
+        )
+    return (
+        "Candidate identity: not provided. Do not invent or guess a name; use only the candidate's own supplied information.",
+        "End with 'Sincerely,' and do not add a name below it",
+    )
+
+
 def build_cover_letter_plan_prompt(
     job_description: str,
     selected_anchors: list[dict[str, Any]],
     style_profile: dict[str, Any],
     previous_letters: list[tuple[str, str]],
     company_url: str,
+    *,
+    candidate_name: str | None = None,
 ) -> str:
     """Create the structured plan that guides the final cover-letter writing step."""
     anchor_details: list[str] = []
@@ -174,13 +189,14 @@ def build_cover_letter_plan_prompt(
 
     style_summary = json.dumps(style_profile, ensure_ascii=False, separators=(",", ":"))
     selected_angle_value = selected_anchors[0].get("title") if selected_anchors else ""
+    identity_line, _ = candidate_identity_lines(candidate_name)
 
     return f"""
 You are producing a cover-letter plan, not the final prose.
 
 You must reason from the actual evidence in the candidate's prior cover letters, the current job description, the selected anchor, and the style profile.
 
-Candidate identity: Resham Joshi.
+{identity_line}
 
 Use only supported information. Do not invent motivation, experience, skills, projects, technologies, or metrics.
 
@@ -286,11 +302,13 @@ def generate_cover_letter_plan(
     style_profile: dict[str, Any],
     previous_letters: list[tuple[str, str]],
     company_url: str,
+    *,
+    candidate_name: str | None = None,
 ) -> dict[str, Any]:
     """Generate a structured cover-letter plan before final writing."""
     load_environment()
     client, model_name = get_groq_client()
-    prompt = build_cover_letter_plan_prompt(job_description, selected_anchors, style_profile, previous_letters, company_url)
+    prompt = build_cover_letter_plan_prompt(job_description, selected_anchors, style_profile, previous_letters, company_url, candidate_name=candidate_name)
 
     try:
         raw_content = call_groq_json(
@@ -356,6 +374,8 @@ def build_cover_letter_prompt(
     previous_letters: list[tuple[str, str]],
     company_url: str,
     plan: dict[str, Any],
+    *,
+    candidate_name: str | None = None,
 ) -> str:
     """Assemble the final generation prompt using the structured cover-letter plan."""
     anchor_details: list[str] = []
@@ -395,11 +415,12 @@ def build_cover_letter_prompt(
         "- The hook, personal connection, role relevance, and gap handling must all feel real and grounded in the evidence.\n"
         "- Do not artificially over-polish or repeat generic statements.\n"
     )
+    identity_line, signoff_line = candidate_identity_lines(candidate_name)
 
     return f"""
 You are writing the final cover letter in the candidate's voice for a specific company and role.
 
-Candidate identity: Resham Joshi. Use the evidence in the prior letters as the source of truth.
+{identity_line} Use the evidence in the prior letters as the source of truth.
 
 You must follow the cover-letter plan exactly, but write the final prose naturally and coherently.
 
@@ -411,7 +432,8 @@ Hard requirements:
 - Do not start with “I am applying for…”, “I want to be direct…”, “I am excited to apply…”, “With my extensive experience…”, or any formulaic opening.
 - {length_line}
 {legacy_quality_lines}- The final closing should be concise and reinforce the strongest evidence-based fit.
-- Preserve Resham's established voice as described in the style profile.
+- {signoff_line}
+- Preserve the candidate's established voice as described in the style profile.
 - Do not mention that you are following a plan or using a style profile.
 
 Style profile:
@@ -512,7 +534,7 @@ Return ONLY valid JSON in this exact shape:
     }
 
 
-def validate_generated_letter(letter: str, selected_anchors: list[dict[str, Any]], job_description: str, *, min_words: int = 200) -> None:
+def validate_generated_letter(letter: str, selected_anchors: list[dict[str, Any]], job_description: str, *, min_words: int = 200, candidate_name: str | None = None) -> None:
     """Perform basic validation before accepting the generated cover letter."""
     if not letter or not letter.strip():
         raise ValueError("Generated cover letter is empty.")
@@ -533,8 +555,11 @@ def validate_generated_letter(letter: str, selected_anchors: list[dict[str, Any]
     if len(letter.split()) < min_words:
         raise ValueError("Generated cover letter is too short to be a credible application letter.")
 
-    if "resham" not in lowered and "joshi" not in lowered:
-        raise ValueError("Generated cover letter does not clearly identify the candidate as Resham Joshi.")
+    # Identify the current candidate only when their name is known from their own resume; never a default name.
+    if candidate_name:
+        name_parts = [part.lower() for part in candidate_name.split() if len(part) > 1]
+        if name_parts and not any(part in lowered for part in name_parts):
+            raise ValueError("Generated cover letter does not clearly identify the candidate.")
 
     suspicious_patterns = [
         "success rates acrossi want to be direct",
@@ -634,7 +659,7 @@ def count_body_paragraphs(letter: str) -> int:
             rest = "\n".join(lines[:cut]).strip()
             blocks = blocks[:-1] + ([rest] if rest else [])
             break
-        # A bare name/signature line such as "Resham Joshi" after a separate sign-off block.
+        # A bare name/signature line (e.g. "Jane Doe") after a separate sign-off block.
         if len(blocks[-1].split()) <= 4 and not blocks[-1].endswith((".", "!", "?")):
             blocks = blocks[:-1]
             continue
@@ -683,6 +708,7 @@ def build_cover_letter_revision_prompt(
     retry_context: str = "",
     feedback_history: list[str] | None = None,
     constraints: dict[str, int | None] | None = None,
+    candidate_name: str | None = None,
 ) -> str:
     """Create a targeted revision prompt for the current cover letter."""
     anchor_details: list[str] = []
@@ -728,9 +754,12 @@ def build_cover_letter_revision_prompt(
     requirements_section = ""
     if requirement_lines:
         requirements_section = "\nHARD REQUIREMENTS FROM THE USER (mandatory for the whole letter):\n" + "\n".join(requirement_lines) + "\n"
+    identity_line, signoff_line = candidate_identity_lines(candidate_name)
 
     return f"""
 Revise the CURRENT COVER LETTER according to the LATEST FEEDBACK.
+
+{identity_line} {signoff_line}.
 
 The user's feedback is an explicit editing instruction and MUST be applied.
 The model must not return the current letter unchanged.
@@ -792,6 +821,7 @@ def generate_cover_letter_revision(
     previous_letters: list[tuple[str, str]],
     company_url: str,
     feedback_history: list[str] | None = None,
+    candidate_name: str | None = None,
 ) -> str:
     """Generate a revised version of the current cover letter using the user's feedback."""
     load_environment()
@@ -819,6 +849,7 @@ def generate_cover_letter_revision(
             retry_context=retry_context,
             feedback_history=feedback_history,
             constraints=constraints,
+            candidate_name=candidate_name,
         )
 
         try:
@@ -853,7 +884,7 @@ def generate_cover_letter_revision(
             raise ValueError("Groq response did not include a cover_letter field for the revision.")
 
         revised_letter = str(payload["cover_letter"]).strip()
-        validate_generated_letter(revised_letter, selected_anchors, job_description, min_words=min_words)
+        validate_generated_letter(revised_letter, selected_anchors, job_description, min_words=min_words, candidate_name=candidate_name)
 
         if is_effectively_unchanged(current_letter, revised_letter):
             if attempt < max_attempts:
@@ -892,12 +923,14 @@ def generate_cover_letter(
     style_profile: dict[str, Any],
     previous_letters: list[tuple[str, str]],
     company_url: str,
+    *,
+    candidate_name: str | None = None,
 ) -> str:
     """Generate the final cover letter through Groq."""
     load_environment()
     client, model_name = get_groq_client()
-    plan = generate_cover_letter_plan(job_description, selected_anchors, style_profile, previous_letters, company_url)
-    base_prompt = build_cover_letter_prompt(job_description, selected_anchors, style_profile, previous_letters, company_url, plan)
+    plan = generate_cover_letter_plan(job_description, selected_anchors, style_profile, previous_letters, company_url, candidate_name=candidate_name)
+    base_prompt = build_cover_letter_prompt(job_description, selected_anchors, style_profile, previous_letters, company_url, plan, candidate_name=candidate_name)
     prompt = base_prompt
     max_attempts = 3
 
@@ -926,7 +959,7 @@ def generate_cover_letter(
             raise ValueError("Groq response did not include a cover_letter field.")
 
         letter = str(payload["cover_letter"]).strip()
-        validate_generated_letter(letter, selected_anchors, job_description)
+        validate_generated_letter(letter, selected_anchors, job_description, candidate_name=candidate_name)
 
         # writing framework: the complete letter must stay within the word limit.
         framework_problem = writing_framework.word_limit_problem(letter)

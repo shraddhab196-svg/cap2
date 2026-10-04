@@ -1,29 +1,37 @@
 {
-  "company_url": "https://www.siemens.com",
+  "company_url": "https://digitalxnode.com/",
   "anchors": [
     {
-      "title": "Agentic AI for Industrial Automation",
-      "company_evidence": "Siemens has launched the 'Eigen Engineering Agent,' a purpose-built AI for industrial automation that autonomously plans, codes, configures, and validates engineering tasks end-to-end.",
-      "job_connection": "The role requires building and optimizing agentic AI systems and conversational flows, specifically within the Microsoft Power Platform ecosystem to handle complex business logic and automation.",
-      "candidate_evidence": "The candidate has hands-on experience building and optimizing agentic AI systems, specifically working on a production multi-agent LangGraph pipeline at Astroraag.",
-      "anchor": "The candidate's direct experience in designing and debugging multi-agent architectures aligns with Siemens' strategic push to deploy autonomous agents like the Eigen Engineering Agent, providing the foundational logic skills needed to build robust conversational agents in the Power Platform.",
-      "source_url": "https://www.siemens.com"
+      "title": "Production RAG Pipeline Optimization",
+      "company_evidence": "The job description explicitly requires building and improving Retrieval-Augmented Generation (RAG) pipelines and working on live client and internal AI projects.",
+      "job_connection": "The role demands practical experience in constructing robust RAG systems that go beyond prototypes to handle real-world data and queries.",
+      "candidate_evidence": "The candidate built a 'Hybrid RAG Knowledge QA System' using QdrantDB, BM25, Reciprocal Rank Fusion, and CrossEncoder reranking, incorporating query expansion and adaptive chunking to improve retrieval coverage.",
+      "anchor": "The candidate's specific experience in engineering a hybrid RAG system with advanced retrieval techniques (RRF, CrossEncoder) directly addresses the job's core requirement to build and improve RAG pipelines for live projects.",
+      "source_url": "https://digitalxnode.com/"
+    },
+    {
+      "title": "Agentic AI and LangGraph Implementation",
+      "company_evidence": "The job description lists 'LangChain, LangGraph, or LlamaIndex' as preferred skills and requires designing intelligent AI agents capable of performing complex tasks.",
+      "job_connection": "The role involves developing AI-powered applications using modern LLM frameworks, specifically highlighting the need for agentic workflows and agent design.",
+      "candidate_evidence": "The candidate has hands-on experience building and optimizing agentic AI systems using LangGraph, specifically re-architecting a multi-agent pipeline into modular agent nodes with execution-level logging.",
+      "anchor": "The candidate's direct experience with LangGraph and modular agent architecture aligns with the job's preference for LangGraph and its requirement to design intelligent AI agents for complex tasks.",
+      "source_url": "https://digitalxnode.com/"
     },
     {
       "title": "Production Reliability and Debugging",
-      "company_evidence": "Siemens emphasizes moving AI beyond suggestions to executing tasks end-to-end, requiring high reliability in industrial settings where failures can have physical consequences.",
-      "job_connection": "The job description explicitly demands a 'strong hands-on mindset' for building, testing, and improving solutions, as well as proactive troubleshooting and optimization of production systems.",
-      "candidate_evidence": "The candidate traced a silent production failure in a LangGraph pipeline to a mismatch between graph.invoke() and graph.stream(), re-architecting the system to reduce debugging time by 60% and improve iteration speed by 40%.",
-      "anchor": "The candidate's demonstrated ability to diagnose and resolve complex, silent production failures in AI pipelines directly supports the job's requirement for proactive troubleshooting and ensuring the reliability of automated business processes.",
-      "source_url": "https://www.siemens.com"
+      "company_evidence": "The company emphasizes 'production-level AI systems' and 'real software development workflows' in the internship description, valuing 'Problem-solving over theory'.",
+      "job_connection": "A key responsibility is to 'Test, debug, and optimize AI applications for better performance' within a production environment.",
+      "candidate_evidence": "The candidate traced a 'silent production failure' in a multi-agent pipeline to a mismatch between graph.invoke() and graph.stream(), reducing debugging time by 60% and improving iteration speed by 40%.",
+      "anchor": "The candidate's demonstrated ability to diagnose and resolve silent production failures in LLM pipelines directly supports the job's focus on debugging, optimizing, and maintaining reliable production-level AI systems.",
+      "source_url": "https://digitalxnode.com/"
     },
     {
-      "title": "Optimization of AI Operational Costs",
-      "company_evidence": "Siemens is scaling Industrial AI across the value chain, including for 600,000+ TIA Portal users, which necessitates efficient and cost-effective AI deployment at scale.",
-      "job_connection": "The role involves translating business requirements into technical solutions, which includes optimizing performance and resource usage for enterprise-grade AI applications.",
-      "candidate_evidence": "The candidate optimized LLM pipelines by implementing prompt engineering, context engineering, and token budgeting, resulting in a 50% reduction in pipeline latency and a 70% reduction in operational cost.",
-      "anchor": "The candidate's proven track record of significantly reducing latency and operational costs through technical optimization aligns with the need to deliver scalable, efficient AI solutions for Siemens' large-scale industrial user base.",
-      "source_url": "https://www.siemens.com"
+      "title": "Cost and Latency Optimization via Prompt Engineering",
+      "company_evidence": "The company values 'Innovation over imitation' and 'Continuous learning and experimentation', and the job requires 'Work with prompt engineering techniques to improve AI responses'.",
+      "job_connection": "The role involves optimizing AI applications for better performance, which includes managing operational costs and response times in LLM applications.",
+      "candidate_evidence": "The candidate worked on prompt engineering, context engineering, and token budgeting, resulting in a 50% reduction in pipeline latency and a 70% reduction in operational cost.",
+      "anchor": "The candidate's experience in optimizing LLM performance through prompt and context engineering, with measurable improvements in latency and cost, aligns with the job's requirement to optimize AI applications and the company's value of innovation.",
+      "source_url": "https://digitalxnode.com/"
     }
   ]
 }

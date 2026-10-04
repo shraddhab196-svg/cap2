@@ -24,8 +24,9 @@ class JobInputRouteTests(unittest.TestCase):
             patch.object(app, "get_job_application", return_value=JOB_APPLICATION),
             patch.object(app, "update_job_application_anchor", return_value=JOB_APPLICATION),
             patch.object(app, "get_generated_cover_letters_for_job", return_value=[]),
+            patch.object(app, "get_resumes_for_user", return_value=[]),
         ]
-        self.mock_save_job, self.mock_get_job, self.mock_update_anchor, self.mock_get_chain = [patcher.start() for patcher in job_patchers]
+        self.mock_save_job, self.mock_get_job, self.mock_update_anchor, self.mock_get_chain, self.mock_resumes = [patcher.start() for patcher in job_patchers]
         for patcher in job_patchers:
             self.addCleanup(patcher.stop)
 

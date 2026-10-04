@@ -15,9 +15,9 @@ def make_letter(paragraph_sizes, word="delivered", opening=""):
     """Greeting (3 words) + body paragraphs of the given sizes + sign-off and name (3 words)."""
     paragraphs = []
     for index, size in enumerate(paragraph_sizes):
-        lead = (opening.split() if index == 0 and opening else []) + ["Resham"]
+        lead = (opening.split() if index == 0 and opening else []) + ["Alex"]
         paragraphs.append(" ".join(lead + [word] * (size - len(lead))))
-    return "Dear Hiring Manager,\n\n" + "\n\n".join(paragraphs) + "\n\nSincerely,\nResham Joshi"
+    return "Dear Hiring Manager,\n\n" + "\n\n".join(paragraphs) + "\n\nSincerely,\nAlex Morgan"
 
 
 def letter_json(letter):

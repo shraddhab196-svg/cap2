@@ -278,9 +278,29 @@ def get_generated_cover_letters_for_job(user_id: str, job_application_id: str, *
         .eq("user_id", user_id)
         .eq("job_application_id", job_application_id)
         .order("revision_number")
+        .order("created_at")  # tie-break so "latest" is the same row on every read
         .execute()
     )
     return result.data or []
+
+
+def save_letter_satisfaction(user_id: str, cover_letter_id: str, satisfaction: str, feedback: str | None = None, *, access_token: str | None = None, refresh_token: str | None = None) -> dict[str, Any]:
+    """Record the post-revision satisfaction response (and optional product feedback) on one generated letter."""
+    supabase = get_client(access_token=access_token, refresh_token=refresh_token)
+    result = (
+        supabase.table("generated_cover_letters")
+        .update({
+            "satisfaction": satisfaction,
+            "satisfaction_feedback": feedback,
+            "satisfaction_submitted_at": datetime.now(timezone.utc).isoformat(),
+        })
+        .eq("id", cover_letter_id)
+        .eq("user_id", user_id)
+        .execute()
+    )
+    if not result.data:
+        raise RuntimeError("Failed to save your response.")
+    return result.data[0]
 
 
 def mark_generated_cover_letter_final(user_id: str, job_application_id: str, cover_letter_id: str, *, access_token: str | None = None, refresh_token: str | None = None) -> dict[str, Any]:
