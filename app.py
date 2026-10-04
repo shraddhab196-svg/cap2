@@ -7,6 +7,7 @@ import logging
 import os
 import re
 import secrets
+import threading
 import time
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import asynccontextmanager
@@ -23,7 +24,7 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 from starlette.middleware.sessions import SessionMiddleware
 from supabase import create_client
 
-from src.anchor_generator import generate_anchors, save_json
+from src.anchor_generator import generate_anchors
 from src.company_researcher import research_company
 from src.cover_letter_generator import generate_cover_letter, generate_cover_letter_revision
 from src.database import (
@@ -129,31 +130,10 @@ def render_error_page(request: Request, status_code: int):
     }, status_code=status_code)
 
 
-# Company angles are stored per job application. They used to share one company_anchors.json for every user,
-# so two people using the app close together could see each other's angles (which quote their resume evidence).
-ANCHORS_DIR = BASE_DIR / "generated" / "anchors"
-
-
-def anchors_path(job_application_id: str) -> Path:
-    # Only call with an id taken from a job_applications row already checked against the current user.
-    if not re.fullmatch(r"[A-Za-z0-9_-]{1,64}", job_application_id or ""):
-        raise ValueError("Invalid job application id.")
-    return ANCHORS_DIR / f"{job_application_id}.json"
-
-
-def load_anchors(job_application_id: str) -> list[dict[str, Any]]:
-    try:
-        payload = json.loads(anchors_path(job_application_id).read_text(encoding="utf-8"))
-    except (OSError, ValueError):
-        return []
-    anchors = payload.get("anchors", []) if isinstance(payload, dict) else []
+def load_anchors(job_application: dict[str, Any] | None) -> list[dict[str, Any]]:
+    # Angles live on the job application row (RLS keeps them per user), not on local disk that free hosts wipe.
+    anchors = (job_application or {}).get("anchors")
     return anchors if isinstance(anchors, list) else []
-
-
-def store_anchors(job_application_id: str, payload: dict[str, Any]) -> None:
-    path = anchors_path(job_application_id)
-    path.parent.mkdir(parents=True, exist_ok=True)
-    save_json(path, payload)
 
 
 def get_supabase_client() -> Any:
@@ -202,23 +182,48 @@ def ensure_fresh_tokens(request: Request) -> None:
         raise HTTPException(status_code=401, detail="Authentication required.")
     if not token_expires_soon(access_token):
         return
-    try:
-        session = get_supabase_client().auth.refresh_session(refresh_token).session
-    except Exception as exc:
-        logging.getLogger(__name__).info("session refresh failed, asking user to log in again: %s", exc)
-        session = None
+    session = refresh_once(refresh_token)
     if not session:
         # Forget the dead login, or /login would bounce the user straight back here (redirect loop).
         request.session.clear()
         raise HTTPException(status_code=401, detail="Session expired.")
     request.session["access_token"] = session.access_token
     request.session["refresh_token"] = session.refresh_token
+    # Re-read the user's row about once an hour so name or email changes show up.
+    request.session.pop("app_user", None)
+
+
+# Several requests from one user (tabs, parallel fetches) can carry the same expiring token. Refresh tokens are
+# single-use, so they share one refresh instead of the second one failing and logging the user out.
+# ponytail: one lock and an in-process dict; with several app instances, Supabase's refresh-token reuse
+# interval (10 s by default) covers the cross-instance race.
+_refresh_lock = threading.Lock()
+_recent_refreshes: dict[str, tuple[float, Any]] = {}
+REFRESH_REUSE_SECONDS = 30
+
+
+def refresh_once(refresh_token: str) -> Any:
+    with _refresh_lock:
+        now = time.monotonic()
+        for token, (when, _) in list(_recent_refreshes.items()):
+            if now - when > REFRESH_REUSE_SECONDS:
+                del _recent_refreshes[token]
+        if refresh_token in _recent_refreshes:
+            return _recent_refreshes[refresh_token][1]
+        try:
+            session = get_supabase_client().auth.refresh_session(refresh_token).session
+        except Exception as exc:
+            logging.getLogger(__name__).info("session refresh failed, asking user to log in again: %s", exc)
+            return None
+        if session:
+            _recent_refreshes[refresh_token] = (now, session)
+        return session
 
 
 def app_user_for_request(request: Request) -> dict[str, Any]:
     auth_user = require_auth(request)
     ensure_fresh_tokens(request)
-    # The app user row never changes for a login, so it rides along in the signed session cookie.
+    # The app user row rides along in the signed session cookie and is re-read whenever the token refreshes.
     cached = request.session.get("app_user")
     if isinstance(cached, dict) and cached.get("auth_user_id") == auth_user.get("id"):
         return cached["user"]
@@ -617,19 +622,6 @@ def submit_job_input(request: Request, job_description: str = Form(...), company
 
         user_id = str(user["id"])
         access_token, refresh_token = get_request_session_tokens(request)
-        job_application = save_job_application(
-            user_id,
-            jd,
-            company_url_value,
-            access_token=access_token,
-            refresh_token=refresh_token,
-        )
-
-        # Only the internal id travels in the (size-limited) session cookie; job details live in the database.
-        request.session.pop("job_description", None)
-        request.session.pop("company_url", None)
-        request.session["job_application_id"] = str(job_application["id"])
-
         company_research = research_company(company_url_value)
         # Use this user's uploaded cover letters (the local extracted_letters folder held 8 letters and pushed
         # the anchor request over Groq's 7000 input-token limit).
@@ -647,7 +639,20 @@ def submit_job_input(request: Request, job_description: str = Form(...), company
             company_research=company_research["company_research"],
             letters=letters,
         )
-        store_anchors(str(job_application["id"]), anchor_payload)
+        anchors = anchor_payload.get("anchors") if isinstance(anchor_payload, dict) else None
+        job_application = save_job_application(
+            user_id,
+            jd,
+            company_url_value,
+            anchors=anchors if isinstance(anchors, list) else [],
+            access_token=access_token,
+            refresh_token=refresh_token,
+        )
+
+        # Only the internal id travels in the (size-limited) session cookie; job details live in the database.
+        request.session.pop("job_description", None)
+        request.session.pop("company_url", None)
+        request.session["job_application_id"] = str(job_application["id"])
         return RedirectResponse(url="/company/angles", status_code=303)
     except ValueError as exc:
         try:
@@ -687,7 +692,7 @@ def company_angles_page(request: Request):
         job_application = get_job_application(user_id, job_application_id=job_application_id, access_token=access_token, refresh_token=refresh_token)
         if not job_application:
             return RedirectResponse(url="/profile/job-input", status_code=303)
-        anchors = load_anchors(str(job_application["id"]))
+        anchors = load_anchors(job_application)
         if not anchors:
             return RedirectResponse(url="/profile/job-input", status_code=303)
         db_company_url = job_application.get("company_url") if isinstance(job_application, dict) else ""
@@ -715,7 +720,7 @@ def select_company_angle(
     company_url: str = Form(""),
     job_application_id: str = Form(""),
 ):
-    verified_job_id = ""
+    verified_job: dict[str, Any] | None = None
     try:
         user = app_user_for_request(request)
         if not selected_anchor:
@@ -742,8 +747,8 @@ def select_company_angle(
                 "error": "No saved job details were found. Please submit the Job Description and Company URL again.",
             })
 
-        verified_job_id = str(job_application["id"])
-        anchors = load_anchors(verified_job_id)
+        verified_job = job_application
+        anchors = load_anchors(job_application)
         if not anchors:
             raise ValueError("No company angles were found for this application. Please go back to Job Input and generate angles again.")
         if selected_index < 0 or selected_index >= len(anchors):
@@ -780,9 +785,8 @@ def select_company_angle(
         existing_chain = get_generated_cover_letters_for_job(user_id, job_application_id, access_token=access_token, refresh_token=refresh_token)
         if existing_chain:
             # Never add a second revision 0 to an existing chain: start a fresh application with the same job details.
-            job_application = save_job_application(user_id, jd, company_url_value, access_token=access_token, refresh_token=refresh_token)
+            job_application = save_job_application(user_id, jd, company_url_value, anchors=anchors, access_token=access_token, refresh_token=refresh_token)
             job_application_id = str(job_application["id"])
-            store_anchors(job_application_id, {"anchors": anchors})
         request.session["job_application_id"] = job_application_id
 
         update_job_application_anchor(
@@ -819,7 +823,7 @@ def select_company_angle(
         return RedirectResponse(url="/login", status_code=303)
     except Exception as exc:
         # Only reload angles for an application already verified as this user's, never the raw form value.
-        fallback_anchors = load_anchors(verified_job_id) if verified_job_id else []
+        fallback_anchors = load_anchors(verified_job)
         return templates.TemplateResponse("company_angles.html", {
             "request": request,
             "user": app_user_for_request(request),

@@ -18,7 +18,6 @@ import base64
 import json
 import os
 import sys
-import tempfile
 import time
 import uuid
 from pathlib import Path
@@ -83,8 +82,9 @@ def fakes(latency: float = 0.0) -> dict[str, Any]:
     def remove(table: str, user_id: str, row_id: str | None = None) -> None:
         db[table] = [row for row in db[table] if not (row["user_id"] == user_id and (row_id is None or row["id"] == row_id))]
 
-    def save_job_application(user_id, job_description, company_url, *, selected_anchor=None, **_):
-        row = {"id": new_id(), "user_id": user_id, "job_description": job_description, "company_url": company_url, "selected_anchor": selected_anchor}
+    def save_job_application(user_id, job_description, company_url, *, selected_anchor=None, anchors=None, **_):
+        row = {"id": new_id(), "user_id": user_id, "job_description": job_description, "company_url": company_url,
+               "selected_anchor": selected_anchor, "anchors": anchors}
         db["jobs"][row["id"]] = row
         return row
 
@@ -161,7 +161,6 @@ def fakes(latency: float = 0.0) -> dict[str, Any]:
         "generate_anchors": generate_anchors,
         "generate_cover_letter": generate_cover_letter,
         "generate_cover_letter_revision": generate_cover_letter_revision,
-        "ANCHORS_DIR": Path(tempfile.mkdtemp(prefix="anchors-")),
     }
 
 

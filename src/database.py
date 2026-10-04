@@ -237,16 +237,18 @@ def save_job_application(
     company_url: str,
     *,
     selected_anchor: dict[str, Any] | None = None,
+    anchors: list[dict[str, Any]] | None = None,
     access_token: str | None = None,
     refresh_token: str | None = None,
 ) -> dict[str, Any]:
-    """Persist a job application draft for a single user."""
+    """Persist a job application draft (with its generated company angles) for a single user."""
     supabase = get_client(access_token=access_token, refresh_token=refresh_token)
     payload = {
         "user_id": user_id,
         "job_description": job_description,
         "company_url": company_url,
         "selected_anchor": selected_anchor,
+        "anchors": anchors,
     }
 
     result = supabase.table("job_applications").insert(payload).execute()

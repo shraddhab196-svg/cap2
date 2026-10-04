@@ -2,6 +2,7 @@ import base64
 import json
 import time
 import unittest
+from concurrent.futures import ThreadPoolExecutor
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
@@ -95,6 +96,7 @@ class SessionTests(unittest.TestCase):
         patcher = patch.object(app, "get_supabase_client", return_value=self.supabase)
         patcher.start()
         self.addCleanup(patcher.stop)
+        app._recent_refreshes.clear()
 
     def login(self, access_token):
         self.supabase.auth.sign_in_with_password.return_value = auth_result(access_token=access_token)
@@ -120,6 +122,24 @@ class SessionTests(unittest.TestCase):
         self.page()
         self.page()
         self.supabase.auth.refresh_session.assert_called_once_with("r1")
+
+    def test_parallel_requests_share_one_refresh(self):
+        self.supabase.auth.refresh_session.side_effect = lambda token: (time.sleep(0.2), SimpleNamespace(session=SimpleNamespace(access_token=jwt(3600), refresh_token="r2")))[1]
+        with ThreadPoolExecutor(5) as pool:
+            sessions = list(pool.map(lambda _: app.refresh_once("r1"), range(5)))
+        self.supabase.auth.refresh_session.assert_called_once_with("r1")
+        self.assertEqual({s.refresh_token for s in sessions}, {"r2"})
+
+    def test_user_details_are_reloaded_after_a_refresh(self):
+        self.login(jwt(3600))
+        self.assertEqual(self.page()[1].call_count, 1)
+        self.assertEqual(self.page()[1].call_count, 0)  # cached while the token is fresh
+        # Each refresh hands out a new short-lived token, so every page below refreshes and re-reads the row.
+        tokens = iter(f"r{n}" for n in range(2, 10))
+        self.supabase.auth.refresh_session.side_effect = lambda _: SimpleNamespace(session=SimpleNamespace(access_token=jwt(10), refresh_token=next(tokens)))
+        with patch.object(app, "token_expires_soon", return_value=True):
+            self.assertEqual(self.page()[1].call_count, 1)
+            self.assertEqual(self.page()[1].call_count, 1)
 
     def test_failed_refresh_logs_out_instead_of_looping(self):
         self.login(jwt(10))
