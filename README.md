@@ -10,7 +10,7 @@ Cover letters in your own voice. Upload your resume and a few letters you've wri
 ![Python 3.12](https://img.shields.io/badge/python-3.12-1A1714.svg)
 ![FastAPI](https://img.shields.io/badge/FastAPI-0.115-1A1714.svg)
 
-**Website:** https://shraddhab196-svg.github.io/cap2/
+**Website:** to be added
 
 ## How it works
 
