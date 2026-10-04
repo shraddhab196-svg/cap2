@@ -85,6 +85,9 @@ if not SESSION_SECRET:
 app.add_middleware(SessionMiddleware, secret_key=SESSION_SECRET)
 app.mount("/static", StaticFiles(directory=str(BASE_DIR / "static")), name="static")
 templates = Jinja2Templates(directory=str(BASE_DIR / "templates"))
+# Templates build links through url()/asset() so scripts/build_site.py can render the same pages for GitHub Pages.
+SITE_CONFIG = json.loads((BASE_DIR / "site" / "config.json").read_text(encoding="utf-8"))
+templates.env.globals.update(url=lambda path: path, asset=lambda path: f"/static/{path}", site=SITE_CONFIG, site_url=None)
 templates.env.globals.update(
     MIN_COVER_LETTERS=MIN_COVER_LETTERS,
     MAX_COVER_LETTERS=MAX_COVER_LETTERS,
@@ -364,6 +367,16 @@ async def healthz():
 @app.get("/", response_class=HTMLResponse)
 async def home(request: Request):
     return templates.TemplateResponse("landing.html", {"request": request, "user": get_authenticated_user(request)})
+
+
+def add_legal_page(page: str) -> None:
+    async def legal_page(request: Request):
+        return templates.TemplateResponse(f"{page}.html", {"request": request})
+    app.add_api_route(f"/{page}", legal_page, methods=["GET"], response_class=HTMLResponse, include_in_schema=False)
+
+
+for _page in ("privacy", "terms", "imprint"):
+    add_legal_page(_page)
 
 
 def app_url(request: Request, path: str) -> str:

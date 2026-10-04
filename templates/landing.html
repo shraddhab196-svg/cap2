@@ -1,21 +1,39 @@
 {% extends "base.html" %}
 {% block title %}Cover letters in your own voice{% endblock %}
-{% block styles %}<link rel="stylesheet" href="/static/css/landing.css?v=1" />{% endblock %}
+{% block styles %}<link rel="stylesheet" href="{{ asset('css/landing.css') }}?v=2" />{% endblock %}
 {% block body_class %}landing{% endblock %}
-{% set start_href = "/profile/setup" if user else "/signup" %}
+{% set start_href = url("/profile/setup") if user else url("/signup") %}
+{% block head %}
+    <link rel="icon" type="image/png" href="{{ asset('img/icon-192.png') }}" />
+    <link rel="apple-touch-icon" href="{{ asset('img/icon-192.png') }}" />
+{% if site_url %}
+    <link rel="canonical" href="{{ site_url }}" />
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="Cover Letter AI" />
+    <meta property="og:title" content="Cover Letter AI · Cover letters in your own voice" />
+    <meta property="og:description" content="Upload your resume and a few letters you've written. Cover Letter AI learns how you sound, researches the company, and drafts a letter that reads like you." />
+    <meta property="og:url" content="{{ site_url }}" />
+    <meta property="og:image" content="{{ site_url }}static/img/og.png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <script type="application/ld+json">{"@context":"https://schema.org","@type":"SoftwareApplication","name":"Cover Letter AI","applicationCategory":"BusinessApplication","operatingSystem":"Web","url":"{{ site_url }}","offers":{"@type":"Offer","price":"0","priceCurrency":"EUR"},"description":"Cover letters in your own voice, grounded in your resume and past letters."}</script>
+{% endif %}
+{% endblock %}
 
 {% block body %}
     <div class="cursor" aria-hidden="true"></div>
 
     <header class="nav" data-intro>
-        <a class="brand" href="/" aria-label="Cover Letter AI home"><span class="brand-mark" aria-hidden="true">c</span><span class="brand-name">Cover Letter AI</span></a>
+        <a class="brand" href="{{ url('/') }}" aria-label="Cover Letter AI home"><span class="brand-mark" aria-hidden="true">c</span><span class="brand-name">Cover Letter AI</span></a>
         <nav class="nav-links" aria-label="Main">
             <a class="nav-link" href="#how">How it works</a>
+            <a class="nav-link" href="#faq">FAQ</a>
             {% if user %}
-            <a class="btn btn-sm" href="/profile/setup" data-magnetic>Open the app</a>
+            <a class="btn btn-sm" href="{{ url('/profile/setup') }}" data-magnetic>Open the app</a>
             {% else %}
-            <a class="nav-link" href="/login">Log in</a>
-            <a class="btn btn-sm" href="/signup" data-magnetic>Start writing</a>
+            <a class="nav-link" href="{{ url('/login') }}">Log in</a>
+            <a class="btn btn-sm" href="{{ url('/signup') }}" data-magnetic>Start writing</a>
             {% endif %}
         </nav>
     </header>
@@ -141,6 +159,39 @@
             </div>
         </section>
 
+        <section class="faq wrap" id="faq">
+            <div class="never-head">
+                <p class="eyebrow">Questions</p>
+                <h2>Before you <em>upload.</em></h2>
+            </div>
+            <div class="faq-list">
+                <details>
+                    <summary>What do I need to get started?</summary>
+                    <p>Your resume and one to five cover letters you've written before. The letters teach it how you write; the resume gives it the facts it's allowed to use.</p>
+                </details>
+                <details>
+                    <summary>Will it make things up about me?</summary>
+                    <p>No. Every project, number, and skill in a draft has to come from your own documents. Before you see a draft, it's checked against them, and anything it can't back up gets rewritten.</p>
+                </details>
+                <details>
+                    <summary>What happens to my documents?</summary>
+                    <p>They're stored in your account and used only to write your letters. You can delete any upload from your profile at any time. We never sell your data or use it to train AI models. The <a class="link" href="{{ url('/privacy') }}">privacy policy</a> lists every service that touches it.</p>
+                </details>
+                <details>
+                    <summary>Is it free?</summary>
+                    <p>Yes, while we're in beta. If that ever changes, we'll tell you well in advance, and nothing you've already written goes behind a paywall.</p>
+                </details>
+                <details>
+                    <summary>How many times can I revise a letter?</summary>
+                    <p>Up to three revisions per letter. Tell it what to change in plain words, like “warmer opening” or “mention the Kafka project”, then accept the version you'd send.</p>
+                </details>
+                <details>
+                    <summary>Which languages does it write in?</summary>
+                    <p>English today. German is next on the list.</p>
+                </details>
+            </div>
+        </section>
+
         <section class="cta">
             <div class="wrap">
                 <p class="eyebrow">Your next application</p>
@@ -150,11 +201,15 @@
                     <a class="btn btn-paper" href="{{ start_href }}" data-magnetic>{% if user %}Open the app{% else %}Start writing{% endif %}</a>
                 </div>
                 <footer class="footer">
-                    <a class="brand" href="/" aria-label="Cover Letter AI home"><span class="brand-mark" aria-hidden="true">c</span><span class="brand-name">Cover Letter AI</span></a>
+                    <a class="brand" href="{{ url('/') }}" aria-label="Cover Letter AI home"><span class="brand-mark" aria-hidden="true">c</span><span class="brand-name">Cover Letter AI</span></a>
                     <nav aria-label="Footer">
                         <a href="#how">How it works</a>
-                        <a href="/login">Log in</a>
-                        <a href="/signup">Sign up</a>
+                        <a href="#faq">FAQ</a>
+                        <a href="{{ url('/login') }}">Log in</a>
+                        <a href="{{ url('/signup') }}">Sign up</a>
+                        <a href="{{ url('/privacy') }}">Privacy</a>
+                        <a href="{{ url('/terms') }}">Terms</a>
+                        <a href="{{ url('/imprint') }}">Imprint</a>
                     </nav>
                 </footer>
             </div>
@@ -167,5 +222,5 @@
     <script src="https://cdn.jsdelivr.net/npm/gsap@3.13.0/dist/ScrollTrigger.min.js" defer></script>
     <script src="https://cdn.jsdelivr.net/npm/gsap@3.13.0/dist/SplitText.min.js" defer></script>
     <script src="https://cdn.jsdelivr.net/npm/lenis@1.3.26/dist/lenis.min.js" defer></script>
-    <script src="/static/js/landing.js?v=1" defer></script>
+    <script src="{{ asset('js/landing.js') }}?v=2" defer></script>
 {% endblock %}

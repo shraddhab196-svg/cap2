@@ -1,0 +1,47 @@
+{% extends "legal.html" %}
+{% block title %}Privacy policy{% endblock %}
+{% block heading %}Privacy policy{% endblock %}
+{% block legal %}
+        <p class="legal-lede">Short version: we keep what you upload so we can write your letters, we send it only to the services that do that work, and we don't track you, sell your data, or use it to train AI models.</p>
+
+        <h2>Who is responsible</h2>
+        <p>The controller for your personal data is {{ todo(site.operator_name, "Operator name") }}, reachable at {{ todo(site.contact_email, "Contact email") }}. Full contact details are in the <a class="link" href="{{ url('/imprint') }}">imprint</a>.</p>
+
+        <h2>What we collect</h2>
+        <ul>
+            <li><strong>Your account:</strong> your email address. Your password goes straight to our sign-in provider (Supabase), which stores only a secure hash. We never store it ourselves.</li>
+            <li><strong>What you upload:</strong> your resume (we keep the text extracted from it) and the cover letters you've written before.</li>
+            <li><strong>What we build from it:</strong> a writing-style profile and a summary of your experience, both made from your uploads.</li>
+            <li><strong>Your applications:</strong> the job descriptions and company websites you enter, the angles we suggest, the letters we draft, and the revision notes you give us.</li>
+            <li><strong>Technical data:</strong> one session cookie that keeps you signed in, and short-lived server logs (IP address, the page requested, time, and response status) to keep the service running and secure.</li>
+        </ul>
+
+        <h2>Why we use it</h2>
+        <p>We use your account, uploads, and applications only to provide the service you signed up for: building your profile, then writing and revising your letters (Art. 6(1)(b) GDPR). We keep technical logs because we have a legitimate interest in running a secure, working service (Art. 6(1)(f) GDPR).</p>
+        <p>We don't use your data for advertising, we don't sell it, and we don't use it to train AI models.</p>
+
+        <h2>Who else processes it</h2>
+        <p>We use a few service providers. Each one gets only what it needs for its job:</p>
+        <ul>
+            <li><strong>Supabase:</strong> database, file storage, and sign-in. Holds your account and everything you upload or create.</li>
+            <li><strong>Groq:</strong> runs the AI model that writes the text. For each step it receives the relevant parts of your documents, the job description, and the company research, and sends back the draft.</li>
+            <li><strong>Render:</strong> hosts the app itself and sees requests to it, including your IP address.</li>
+            <li><strong>GitHub Pages:</strong> hosts this website and sees requests to it, including your IP address.</li>
+            <li><strong>Google Fonts and jsDelivr:</strong> deliver the fonts and animation scripts your browser loads on these pages, so they see your IP address.</li>
+        </ul>
+        <p>When you enter a company website, our server fetches it directly. The company sees a request from our server, not from you.</p>
+        <p>Some of these providers are based in the United States. Where your data leaves the EU, we rely on the safeguards the law provides, such as the EU–US Data Privacy Framework or the EU's Standard Contractual Clauses.</p>
+
+        <h2>How long we keep it</h2>
+        <p>Your uploads and letters stay in your account until you delete them or your account. You can delete any uploaded resume or letter from your profile at any time. To delete your whole account and everything in it, email {{ todo(site.contact_email, "Contact email") }} and we'll do it within 30 days. Server logs are deleted automatically after a short period.</p>
+
+        <h2>Cookies</h2>
+        <p>We set one cookie, and only when you sign in: a session cookie that keeps you logged in. It's strictly necessary, so it doesn't need consent. There are no analytics, advertising, or tracking cookies.</p>
+
+        <h2>Your rights</h2>
+        <p>You can ask us for a copy of your data, ask us to correct or delete it, restrict or object to how we use it, or ask for it in a portable format. Email {{ todo(site.contact_email, "Contact email") }}. You can also complain to a data protection supervisory authority, for example the one where you live.</p>
+        <p>We don't make automated decisions about you that have legal or similarly significant effects. The AI writes drafts; you decide what to send.</p>
+
+        <h2>Changes</h2>
+        <p>If we change this policy in a way that matters, we'll say so in the app before the change takes effect.</p>
+{% endblock %}

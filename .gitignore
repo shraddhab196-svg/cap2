@@ -17,3 +17,6 @@ style_profile.json
 
 # Per-application company angles (runtime data)
 generated/
+
+# Built website (scripts/build_site.py)
+_site/

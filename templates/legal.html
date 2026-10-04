@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+{% block body_class %}app legal-page{% endblock %}
+{% macro todo(value, label) %}{% if value %}{{ value }}{% else %}<mark class="todo">{{ label }} to be added</mark>{% endif %}{% endmacro %}
+{% block body %}
+    <header class="legal-head">
+        <a class="brand" href="{{ url('/') }}" aria-label="Cover Letter AI home"><span class="brand-mark" aria-hidden="true">c</span><span class="brand-name">Cover Letter AI</span></a>
+        <a class="link" href="{{ url('/') }}">Back to home</a>
+    </header>
+    <main id="main" class="legal">
+        <p class="eyebrow">Legal</p>
+        <h1>{% block heading %}{% endblock %}</h1>
+        <p class="legal-updated">Last updated {{ site.legal_updated }}</p>
+{% block legal %}{% endblock %}
+    </main>
+    <footer class="legal-foot">
+        <nav aria-label="Legal">
+            <a href="{{ url('/privacy') }}">Privacy</a>
+            <a href="{{ url('/terms') }}">Terms</a>
+            <a href="{{ url('/imprint') }}">Imprint</a>
+        </nav>
+        <span>© 2026 Cover Letter AI</span>
+    </footer>
+{% endblock %}
