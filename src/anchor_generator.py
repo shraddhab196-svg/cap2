@@ -207,36 +207,27 @@ def generate_anchors(company_url: str, job_description: str, company_research: s
     try:
         payload = json.loads(cleaned_content)
     except json.JSONDecodeError as exc:
-        logger.error("ERROR: Groq returned invalid JSON content.\nRAW GROQ RESPONSE:\n%s", raw_content)
+        logger.error("Groq returned invalid JSON content (%d characters).", len(raw_content))
         raise AnchorOutputError("Groq returned invalid JSON content.") from exc
 
     if not isinstance(payload, dict) or "anchors" not in payload:
-        logger.error("ERROR: Groq returned invalid JSON content.\nRAW GROQ RESPONSE:\n%s", raw_content)
+        logger.error("Groq returned invalid JSON content (%d characters).", len(raw_content))
         raise AnchorOutputError("Groq response did not contain the required anchors structure.")
 
     anchors = payload.get("anchors")
     if not isinstance(anchors, list):
-        logger.error("ERROR: Groq returned invalid JSON content.\nRAW GROQ RESPONSE:\n%s", raw_content)
+        logger.error("Groq returned invalid JSON content (%d characters).", len(raw_content))
         raise AnchorOutputError("Groq returned an invalid anchors list.")
 
     required_fields = {"title", "company_evidence", "job_connection", "candidate_evidence", "anchor", "source_url"}
     for anchor in anchors:
         if not isinstance(anchor, dict):
-            logger.error("ERROR: Groq returned invalid JSON content.\nRAW GROQ RESPONSE:\n%s", raw_content)
+            logger.error("Groq returned invalid JSON content (%d characters).", len(raw_content))
             raise AnchorOutputError("Every anchor must be a JSON object.")
         missing_fields = sorted(required_fields - set(anchor.keys()))
         if missing_fields:
-            logger.error("ERROR: Groq returned invalid JSON content.\nRAW GROQ RESPONSE:\n%s", raw_content)
+            logger.error("Groq returned invalid JSON content (%d characters).", len(raw_content))
             raise AnchorOutputError(f"Each anchor must include the required fields: {missing_fields}")
-
-    print("\nRAW/GENERATED ANCHORS:")
-    print("--------------------------------")
-    for index, anchor in enumerate(anchors, start=1):
-        print(f"Anchor {index}:")
-        print(json.dumps(anchor, indent=2, ensure_ascii=False))
-        print()
-    print("--------------------------------")
-    print(f"Number of anchors returned: {len(anchors)}")
 
     useful_anchors: list[dict[str, Any]] = []
     for index, anchor in enumerate(anchors, start=1):
@@ -249,13 +240,11 @@ def generate_anchors(company_url: str, job_description: str, company_research: s
                 reasons.append(f"{field} was empty")
         if not reasons:
             useful_anchors.append(anchor)
-            print(f"Anchor {index} accepted")
         else:
-            print(f"Anchor {index} rejected:")
-            for reason in reasons:
-                print(f"- {reason}")
+            logger.info("anchor %d rejected: %s", index, "; ".join(reasons))
 
-    print(f"Number considered useful: {len(useful_anchors)}")
+    # Counts only: anchors quote the user's resume and letters, which must not end up in server logs.
+    logger.info("anchors: %d returned, %d useful", len(anchors), len(useful_anchors))
 
     if len(useful_anchors) < 3:
         raise ValueError("Fewer than 3 useful anchors were generated.")

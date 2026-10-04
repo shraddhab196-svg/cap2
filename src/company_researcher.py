@@ -59,7 +59,7 @@ def fetch_company_html(company_url: str, timeout: int = 15) -> str:
                 break
             url = urljoin(url, response.headers["location"])
         else:
-            raise RuntimeError(f"Too many redirects while fetching the company website: {company_url}")
+            raise ValueError(f"That website redirects too many times: {company_url}")
         response.raise_for_status()
     except requests.exceptions.MissingSchema as exc:
         raise ValueError(f"Invalid company URL: {company_url}") from exc
@@ -68,7 +68,7 @@ def fetch_company_html(company_url: str, timeout: int = 15) -> str:
     except requests.exceptions.Timeout as exc:
         raise TimeoutError(f"Request timed out while fetching the company website: {company_url}") from exc
     except requests.exceptions.RequestException as exc:
-        raise RuntimeError(f"Failed to fetch the company website: {company_url}") from exc
+        raise ValueError(f"We couldn't open that website. Check the address, or try the company's main page: {company_url}") from exc
 
     html = response.text
     if not html or not html.strip():

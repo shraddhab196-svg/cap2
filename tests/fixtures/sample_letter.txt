@@ -1,0 +1,12 @@
+Dear Hiring Manager,
+
+Your post asks for someone who can make alerts trustworthy again. That was most of my last year. At my current team, the on-call channel fired forty times a night, and almost nobody looked any more. I rebuilt the monitoring pipeline around precision first, retrained the thresholds on a quarter of labelled incidents, and cut false alerts by 30%. The channel went quiet, and when it did fire, people answered.
+
+That work is why Northwind's note about on-call noise caught my eye. Your forecasting team ships models from research notebooks every quarter, and every one of those models needs alerts someone believes. I've taken two anomaly-detection prototypes from a notebook to a Dockerised service on AWS, with tests, dashboards and a rollback plan, so I know where that path tends to break.
+
+I also know what a small team owning a wide surface feels like. I led four engineers who kept the data pipelines for three products running. We didn't have time for heroics, so we wrote things down, automated the boring checks, and kept the pager for real problems.
+
+I'd like to bring that habit to Northwind's platform team: fewer alerts, better ones, and models that reach production without surprises. I'd be glad to walk you through the monitoring rebuild in more detail.
+
+Kind regards,
+Jane Doe

@@ -5,7 +5,7 @@ from src.cover_letter_generator import is_effectively_unchanged
 OPENING = "BCG X needs AI systems that survive real operations; my thesis work built that evaluation discipline."
 MIDDLE = "At Fraunhofer I built a reinforcement-learning pipeline that reached 88-96% success across test scenarios."
 CLOSING = "I would welcome a conversation about how this experience could support your team."
-CURRENT = f"Dear Hiring Manager,\n\n{OPENING}\n\n{MIDDLE}\n\n{CLOSING}\n\nSincerely,\nResham Joshi"
+CURRENT = f"Dear Hiring Manager,\n\n{OPENING}\n\n{MIDDLE}\n\n{CLOSING}\n\nSincerely,\nJane Doe"
 
 
 class IsEffectivelyUnchangedTests(unittest.TestCase):

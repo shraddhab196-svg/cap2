@@ -19,6 +19,16 @@ SKILL_KEYWORDS = {
 }
 
 
+MAX_UPLOAD_BYTES = 5 * 1024 * 1024
+
+
+def read_limited(file: UploadFile) -> bytes:
+    data = file.file.read(MAX_UPLOAD_BYTES + 1)
+    if len(data) > MAX_UPLOAD_BYTES:
+        raise ValueError(f"{file.filename or 'That file'} is larger than 5 MB. Please upload a smaller file.")
+    return data
+
+
 def read_uploaded_text(file: UploadFile) -> str:
     """Read uploaded text from a resume or cover-letter file."""
     if file is None:
@@ -32,14 +42,14 @@ def read_uploaded_text(file: UploadFile) -> str:
 
         # A unique temp file: the uploaded name can collide between users or contain "../".
         with tempfile.NamedTemporaryFile(suffix=".pdf", delete=False) as handle:
-            handle.write(file.file.read())
+            handle.write(read_limited(file))
             temp_path = Path(handle.name)
         try:
             return extract_pdf_text(temp_path)
         finally:
             temp_path.unlink(missing_ok=True)
 
-    content = file.file.read()
+    content = read_limited(file)
     return content.decode("utf-8", errors="replace")
 
 

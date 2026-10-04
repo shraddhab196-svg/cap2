@@ -7,7 +7,7 @@ from fastapi.testclient import TestClient
 
 import app
 
-SAMPLE_ANCHORS = json.loads((app.BASE_DIR / "company_anchors.json").read_text(encoding="utf-8"))["anchors"]
+SAMPLE_ANCHORS = json.loads((app.BASE_DIR / "tests" / "fixtures" / "sample_anchors.json").read_text(encoding="utf-8"))["anchors"]
 USER = {"id": "00000000-0000-0000-0000-000000000001", "email": "demo@example.com"}
 JOB_APPLICATION = {
     "id": "job-1",
@@ -26,8 +26,9 @@ class JobInputRouteTests(unittest.TestCase):
             patch.object(app, "get_job_application", return_value=JOB_APPLICATION),
             patch.object(app, "update_job_application_anchor", return_value=JOB_APPLICATION),
             patch.object(app, "get_generated_cover_letters_for_job", return_value=[]),
+            patch.object(app, "get_resumes_for_user", return_value=[{"extracted_text": "JANE DOE\nMachine learning engineer"}]),
         ]
-        self.mock_save_job, self.mock_get_job, self.mock_update_anchor, self.mock_get_chain = [patcher.start() for patcher in job_patchers]
+        self.mock_save_job, self.mock_get_job, self.mock_update_anchor, self.mock_get_chain, _ = [patcher.start() for patcher in job_patchers]
         for patcher in job_patchers:
             self.addCleanup(patcher.stop)
 
@@ -90,7 +91,7 @@ class JobInputRouteTests(unittest.TestCase):
         self.assertEqual(mock_generate.call_args.kwargs["letters"], [("letter1.txt", "I led a project")])
 
     def test_company_angles_page_renders(self):
-        first_title = json.loads((app.BASE_DIR / "company_anchors.json").read_text(encoding="utf-8"))["anchors"][0]["title"]
+        first_title = json.loads((app.BASE_DIR / "tests" / "fixtures" / "sample_anchors.json").read_text(encoding="utf-8"))["anchors"][0]["title"]
         self.submit_job_input()
         with patch.object(app, "app_user_for_request", return_value={"id": "user-123", "email": "demo@example.com"}):
             response = self.client.get("/company/angles")
@@ -238,6 +239,8 @@ class JobInputRouteTests(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertIn("GENERATED COVER LETTER", response.text)
         self.assertEqual(mock_generate.call_count, 1)
+        # The letter is signed with this user's own name, read from the top of their resume.
+        self.assertEqual(mock_generate.call_args.kwargs["candidate_name"], "Jane Doe")
         self.assertEqual(mock_save.call_count, 1)
 
     def test_angle_submission_shows_generation_error(self):
@@ -259,7 +262,8 @@ class JobInputRouteTests(unittest.TestCase):
             )
 
         self.assertEqual(response.status_code, 200)
-        self.assertIn("Groq API is unavailable", response.text)
+        self.assertIn(app.GENERIC_ERROR, response.text)
+        self.assertNotIn("Groq API is unavailable", response.text)
 
 
 if __name__ == "__main__":

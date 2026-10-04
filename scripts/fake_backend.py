@@ -31,8 +31,8 @@ if str(ROOT) not in sys.path:
 import app  # noqa: E402
 from src.llm_client import LLMBusyError  # noqa: E402
 
-SAMPLE_ANCHORS = json.loads((ROOT / "company_anchors.json").read_text(encoding="utf-8"))
-SAMPLE_LETTER = (ROOT / "generated_cover_letter.txt").read_text(encoding="utf-8")
+SAMPLE_ANCHORS = json.loads((ROOT / "tests" / "fixtures" / "sample_anchors.json").read_text(encoding="utf-8"))
+SAMPLE_LETTER = (ROOT / "tests" / "fixtures" / "sample_letter.txt").read_text(encoding="utf-8")
 
 
 def fakes(latency: float = 0.0) -> dict[str, Any]:
@@ -65,6 +65,7 @@ def fakes(latency: float = 0.0) -> dict[str, Any]:
             return SimpleNamespace(user=SimpleNamespace(id=user_id), session=session_for(user_id))
 
         sign_up = sign_in_with_password = _login
+        admin = SimpleNamespace(sign_out=lambda jwt, scope="global": None)
 
         def refresh_session(self, refresh_token: str):
             return SimpleNamespace(session=session_for("refreshed"))
@@ -155,6 +156,8 @@ def fakes(latency: float = 0.0) -> dict[str, Any]:
         "get_job_application": get_job_application,
         "update_job_application_anchor": update_job_application_anchor,
         "save_generated_cover_letter": save_generated_cover_letter,
+        # In-memory rows have no timestamps, so this counts everything since the server started.
+        "count_recent_ai_actions": lambda user_id, since, **_: len(mine(list(db["jobs"].values()), user_id)) + len(mine(db["letters"], user_id)),
         "get_generated_cover_letters_for_job": get_generated_cover_letters_for_job,
         "mark_generated_cover_letter_final": mark_generated_cover_letter_final,
         "research_company": research_company,

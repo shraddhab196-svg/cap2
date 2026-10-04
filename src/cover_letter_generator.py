@@ -146,12 +146,48 @@ def trim_evidence_snippet(text: str, limit: int = 500) -> str:
     return f"{trimmed} ... [truncated]"
 
 
+NAME_WORD = re.compile(r"^[^\W\d_][^\W\d_'.-]*(?:['.-][^\W\d_]+)*\.?$")
+
+
+# Heading and job-title words that can sit above the name at the top of a resume.
+RESUME_HEADINGS = {
+    "curriculum", "vitae", "resume", "résumé", "cv", "lebenslauf", "profile", "contact", "summary",
+    "senior", "junior", "lead", "principal", "staff", "head", "chief", "engineer", "developer", "scientist",
+    "analyst", "manager", "designer", "consultant", "architect", "researcher", "student", "intern", "data",
+    "software", "machine", "learning", "ml", "ai", "product", "full-stack", "frontend", "backend", "devops",
+}
+
+
+def extract_candidate_name(resume_text: str | None) -> str | None:
+    """Return the name a resume starts with ("Jane Doe", "JANE DOE"), or None if the top doesn't look like one.
+
+    ponytail: a heuristic over the first few lines; add a "your name" profile field if resumes defeat it.
+    """
+    lines = [line.strip() for line in (resume_text or "").splitlines() if line.strip()]
+    for line in lines[:4]:
+        # "Jane Doe | Berlin", "Jane Doe, M.Sc." -> "Jane Doe"
+        words = re.split(r"[|,•·–—]", line, maxsplit=1)[0].split()
+        if {word.lower().strip(":") for word in words} & RESUME_HEADINGS:
+            continue
+        if 2 <= len(words) <= 4 and all(NAME_WORD.match(word) for word in words) and all(word[0].isupper() for word in words):
+            return " ".join(word if not word.isupper() or len(word) <= 2 else word.capitalize() for word in words)
+    return None
+
+
+def identity_line(candidate_name: str | None) -> str:
+    # Every user's letters used to be signed with one hardcoded person's name.
+    if candidate_name:
+        return f"Candidate name: {candidate_name}. Sign the letter with exactly this name."
+    return "The candidate's name is not known: end with the sign-off line only, and never invent or guess a name."
+
+
 def build_cover_letter_plan_prompt(
     job_description: str,
     selected_anchors: list[dict[str, Any]],
     style_profile: dict[str, Any],
     previous_letters: list[tuple[str, str]],
     company_url: str,
+    candidate_name: str | None = None,
 ) -> str:
     """Create the structured plan that guides the final cover-letter writing step."""
     anchor_details: list[str] = []
@@ -179,7 +215,7 @@ You are producing a cover-letter plan, not the final prose.
 
 You must reason from the actual evidence in the candidate's prior cover letters, the current job description, the selected anchor, and the style profile.
 
-Candidate identity: Resham Joshi.
+{identity_line(candidate_name)}
 
 Use only supported information. Do not invent motivation, experience, skills, projects, technologies, or metrics.
 
@@ -288,11 +324,12 @@ def generate_cover_letter_plan(
     style_profile: dict[str, Any],
     previous_letters: list[tuple[str, str]],
     company_url: str,
+    candidate_name: str | None = None,
 ) -> dict[str, Any]:
     """Generate a structured cover-letter plan before final writing."""
     load_environment()
     client, model_name = get_llm_client()
-    prompt = build_cover_letter_plan_prompt(job_description, selected_anchors, style_profile, previous_letters, company_url)
+    prompt = build_cover_letter_plan_prompt(job_description, selected_anchors, style_profile, previous_letters, company_url, candidate_name)
 
     try:
         raw_content = call_groq_json(
@@ -312,7 +349,7 @@ def generate_cover_letter_plan(
     try:
         payload = json.loads(raw_content)
     except json.JSONDecodeError as exc:
-        logger.error("ERROR: Groq returned invalid JSON plan content.\nRAW GROQ RESPONSE:\n%s", raw_content)
+        logger.error("Groq returned invalid JSON plan content (%d characters).", len(raw_content))
         raise ValueError("Groq returned invalid JSON content for the cover-letter plan.") from exc
 
     if not isinstance(payload, dict):
@@ -359,6 +396,7 @@ def build_cover_letter_prompt(
     previous_letters: list[tuple[str, str]],
     company_url: str,
     plan: dict[str, Any],
+    candidate_name: str | None = None,
 ) -> str:
     """Assemble the final generation prompt using the structured cover-letter plan."""
     anchor_details: list[str] = []
@@ -402,7 +440,7 @@ def build_cover_letter_prompt(
     return f"""
 You are writing the final cover letter in the candidate's voice for a specific company and role.
 
-Candidate identity: Resham Joshi. Use the evidence in the prior letters as the source of truth.
+{identity_line(candidate_name)} Use the evidence in the prior letters as the source of truth.
 
 You must follow the cover-letter plan exactly, but write the final prose naturally and coherently.
 
@@ -414,7 +452,7 @@ Hard requirements:
 - Do not start with “I am applying for…”, “I want to be direct…”, “I am excited to apply…”, “With my extensive experience…”, or any formulaic opening.
 - {length_line}
 {legacy_quality_lines}- The final closing should be concise and reinforce the strongest evidence-based fit.
-- Preserve Resham's established voice as described in the style profile.
+- Preserve the candidate's established voice as described in the style profile.
 - Do not mention that you are following a plan or using a style profile.
 
 Style profile:
@@ -537,9 +575,6 @@ def validate_generated_letter(letter: str, selected_anchors: list[dict[str, Any]
     if len(letter.split()) < min_words:
         raise ValueError("Generated cover letter is too short to be a credible application letter.")
 
-    if "resham" not in lowered and "joshi" not in lowered:
-        raise ValueError("Generated cover letter does not clearly identify the candidate as Resham Joshi.")
-
     suspicious_patterns = [
         "success rates acrossi want to be direct",
         "i want to be direct.*success rates across",
@@ -638,7 +673,7 @@ def count_body_paragraphs(letter: str) -> int:
             rest = "\n".join(lines[:cut]).strip()
             blocks = blocks[:-1] + ([rest] if rest else [])
             break
-        # A bare name/signature line such as "Resham Joshi" after a separate sign-off block.
+        # A bare name/signature line such as "Jane Doe" after a separate sign-off block.
         if len(blocks[-1].split()) <= 4 and not blocks[-1].endswith((".", "!", "?")):
             blocks = blocks[:-1]
             continue
@@ -851,7 +886,7 @@ def generate_cover_letter_revision(
             try:
                 payload = json.loads(cleaned)
             except json.JSONDecodeError as exc:
-                logger.error("ERROR: Groq returned invalid JSON while revising the cover letter.\nRAW GROQ RESPONSE:\n%s", raw_content)
+                logger.error("Groq returned invalid JSON while revising the cover letter (%d characters).", len(raw_content))
                 raise ValueError("Groq returned invalid JSON content while revising the cover letter.") from exc
 
         if not isinstance(payload, dict) or "cover_letter" not in payload:
@@ -897,12 +932,13 @@ def generate_cover_letter(
     style_profile: dict[str, Any],
     previous_letters: list[tuple[str, str]],
     company_url: str,
+    candidate_name: str | None = None,
 ) -> str:
     """Generate the final cover letter through Groq."""
     load_environment()
     client, model_name = get_llm_client()
-    plan = generate_cover_letter_plan(job_description, selected_anchors, style_profile, previous_letters, company_url)
-    base_prompt = build_cover_letter_prompt(job_description, selected_anchors, style_profile, previous_letters, company_url, plan)
+    plan = generate_cover_letter_plan(job_description, selected_anchors, style_profile, previous_letters, company_url, candidate_name)
+    base_prompt = build_cover_letter_prompt(job_description, selected_anchors, style_profile, previous_letters, company_url, plan, candidate_name)
     prompt = base_prompt
     max_attempts = 3
 
@@ -925,7 +961,7 @@ def generate_cover_letter(
         try:
             payload = json.loads(raw_content)
         except json.JSONDecodeError as exc:
-            logger.error("ERROR: Groq returned invalid JSON content.\nRAW GROQ RESPONSE:\n%s", raw_content)
+            logger.error("Groq returned invalid JSON content (%d characters).", len(raw_content))
             raise ValueError("Groq returned invalid JSON content.") from exc
 
         if not isinstance(payload, dict) or "cover_letter" not in payload:

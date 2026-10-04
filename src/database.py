@@ -318,3 +318,13 @@ def mark_generated_cover_letter_final(user_id: str, job_application_id: str, cov
     if not result.data:
         raise RuntimeError("Failed to mark the selected cover letter as final.")
     return result.data[0]
+
+
+def count_recent_ai_actions(user_id: str, since: datetime, *, access_token: str | None = None, refresh_token: str | None = None) -> int:
+    """Jobs started plus letters drafted or revised since `since`: each one costs several LLM calls."""
+    supabase = get_client(access_token=access_token, refresh_token=refresh_token)
+    total = 0
+    for table in ("job_applications", "generated_cover_letters"):
+        result = supabase.table(table).select("id", count="exact", head=True).eq("user_id", user_id).gte("created_at", since.isoformat()).execute()
+        total += result.count or 0
+    return total
