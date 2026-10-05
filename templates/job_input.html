@@ -16,12 +16,12 @@
             <form class="card card-pad rise" style="--i:3" method="post" action="/profile/job-input" data-overlay="Reading the job description…|Researching the company…|Looking for where you fit…|Finding your strongest angles…">
                 <div class="field">
                     <label class="field-label" for="job_description">Job Description <span class="field-hint" data-count-for="job_description" aria-live="polite"></span></label>
-                    <textarea class="input" id="job_description" name="job_description" rows="12" placeholder="Paste the full job description here..." data-autogrow required>{{ job_description or '' }}</textarea>
+                    <textarea class="input" id="job_description" name="job_description" rows="12" placeholder="Paste the full job description here..." data-autogrow required data-msg-missing="Paste the job description first. It's what we tailor the letter to.">{{ job_description or '' }}</textarea>
                 </div>
 
                 <div class="field">
                     <label class="field-label" for="company_url">Company URL</label>
-                    <input class="input" id="company_url" name="company_url" type="url" placeholder="https://company.com" value="{{ company_url or '' }}" required />
+                    <input class="input" id="company_url" name="company_url" type="url" placeholder="https://company.com" value="{{ company_url or '' }}" required data-msg-missing="Add the company's website so we can learn what they're about." data-msg-format="That doesn't look like a web address. Try something like https://company.com." />
                 </div>
 
                 <div class="actions">

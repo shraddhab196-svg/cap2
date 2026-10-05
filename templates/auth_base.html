@@ -39,7 +39,7 @@
                 <form method="post" action="{% block action %}{% endblock %}" class="rise" style="--i:3" data-loading>
                     <div class="field">
                         <label class="field-label" for="email">Email</label>
-                        <input class="input" id="email" name="email" type="email" placeholder="name@company.com" autocomplete="email" maxlength="254" value="{{ email or '' }}" required {% if not email %}autofocus{% endif %} />
+                        <input class="input" id="email" name="email" type="email" placeholder="name@company.com" autocomplete="email" maxlength="254" data-msg-missing="Add your email so we know where your account lives." value="{{ email or '' }}" required {% if not email %}autofocus{% endif %} />
                     </div>
                     <div class="field">
                         <label class="field-label" for="password">Password</label>

@@ -28,7 +28,7 @@
                         <span class="angle-tick" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg></span>
                     </div>
                     <label class="angle-title">
-                        <input class="angle-radio" type="radio" name="selected_anchor" value="{{ loop.index0 }}" required />
+                        <input class="angle-radio" type="radio" name="selected_anchor" value="{{ loop.index0 }}" required data-msg-missing="Pick the angle you like best, and we'll write the letter around it." />
                         {{ anchor.title }}
                     </label>
                     <p class="angle-pitch">{{ anchor.anchor }}</p>

@@ -41,7 +41,7 @@
                     {% endif %}
                     <form class="upload" method="post" action="/profile/resume" enctype="multipart/form-data" data-loading>
                         <label class="dropzone">
-                            <input type="file" name="resume" accept=".pdf,.txt" required />
+                            <input type="file" name="resume" accept=".pdf,.txt" required data-msg-missing="Choose your resume first (PDF or .txt)." />
                             <span class="dropzone-plus" aria-hidden="true">+</span>
                             <span class="dropzone-text" data-file-text data-default="{% if resume %}Choose a new resume file{% else %}Choose resume file{% endif %}">{% if resume %}Choose a new resume file{% else %}Choose resume file{% endif %}</span>
                         </label>
@@ -72,7 +72,7 @@
                     {% if status.cover_letter_count < MAX_COVER_LETTERS %}
                     <form class="upload" method="post" action="/profile/cover-letters" enctype="multipart/form-data" data-loading>
                         <label class="dropzone">
-                            <input type="file" name="files" accept=".pdf,.txt" required />
+                            <input type="file" name="files" accept=".pdf,.txt" required data-msg-missing="Choose a cover letter you've written before (PDF or .txt)." />
                             <span class="dropzone-plus" aria-hidden="true">+</span>
                             <span class="dropzone-text" data-file-text data-default="Choose cover letter file">Choose cover letter file</span>
                         </label>
