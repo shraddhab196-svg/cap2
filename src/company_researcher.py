@@ -9,7 +9,7 @@ from typing import Any
 from urllib.parse import urljoin, urlsplit
 
 import requests
-from bs4 import BeautifulSoup
+from bs4 import BeautifulSoup, NavigableString
 from dotenv import load_dotenv
 
 logger = logging.getLogger(__name__)
@@ -85,13 +85,26 @@ def extract_company_text(company_url: str, html: str) -> str:
         for tag in soup.find_all(tag_name):
             tag.decompose()
 
+    text_tags = ["p", "li", "h1", "h2", "h3", "h4"]
+    container_tags = ["article", "section", "main"]
     text_blocks: list[str] = []
-    for element in soup.find_all(["p", "li", "h1", "h2", "h3", "h4", "article", "section", "main"]):
-        text = " ".join(element.get_text(" ", strip=True).split())
+    for element in soup.find_all(text_tags + container_tags):
+        if element.name in container_tags:
+            # Only the container's own loose text; text inside nested text elements/containers is taken from those.
+            own_strings = [
+                string for string in element.find_all(string=True)
+                if type(string) is NavigableString and string.find_parent(text_tags + container_tags) is element
+            ]
+            text = " ".join(" ".join(own_strings).split())
+        elif element.find_parent(text_tags) is not None:
+            continue  # already included via the enclosing text element (e.g. <p> inside <li>)
+        else:
+            text = " ".join(element.get_text(" ", strip=True).split())
         if text:
             text_blocks.append(text)
 
-    cleaned = "\n\n".join(text_blocks)
+    # Each piece of text once, in page order (also drops blocks the page itself repeats verbatim).
+    cleaned = "\n\n".join(dict.fromkeys(text_blocks))
     cleaned = re.sub(r"\n{3,}", "\n\n", cleaned)
     cleaned = cleaned.strip()
 

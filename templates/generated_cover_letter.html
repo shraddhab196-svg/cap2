@@ -32,8 +32,7 @@
             </div>
 
             <aside class="side rise" style="--i:3">
-                {% if job_application_id and not is_final %}
-                    {% if can_revise %}
+                {% if job_application_id and not is_final and can_revise %}
                     <form class="card card-pad" method="post" action="/cover-letter/revise" data-overlay="Reading your notes…|Revising with a red pen…|Keeping your voice intact…">
                         <input type="hidden" name="job_application_id" value="{{ job_application_id }}" />
                         <div class="eyebrow">Revise</div>
@@ -52,9 +51,7 @@
                             <button type="submit" class="btn btn-ghost">Revise letter</button>
                         </div>
                     </form>
-                    {% else %}
-                    <p class="card card-pad note">The maximum of {{ max_revisions }} revisions has been reached. Please accept the current letter.</p>
-                    {% endif %}
+                    
 
                     <form class="card card-pad" method="post" action="/cover-letter/accept" data-loading>
                         <input type="hidden" name="job_application_id" value="{{ job_application_id }}" />
@@ -84,4 +81,70 @@
             </aside>
         </div>
         {% endif %}
+        {% if satisfaction_due and job_application_id %}
+<div class="satisfaction-overlay" id="satisfaction-dialog">
+    <div class="satisfaction-dialog card card-pad" role="dialog" aria-modal="true" aria-labelledby="satisfaction-title">        
+        <button type="button" class="dialog-close" aria-label="Close" data-close-dialog>×</button>
+        {% if is_final %}
+        <h2 id="satisfaction-title">Great! Your cover letter is ready.</h2>
+        <div class="dialog-actions">
+            <form method="get" action="/cover-letter/pdf">
+                <button type="submit" class="btn">Download PDF</button>
+            </form>
+        </div>
+        {% elif satisfaction == 'not_satisfied' %}
+        <h2 id="satisfaction-title">Thank you for your feedback.</h2>
+        <p>Your feedback has been saved and will help us improve Cover Letter AI.</p>
+        {% else %}
+        {% if error %}
+        <div class="alert" role="alert">{{ error }}</div>
+        {% endif %}
+        <div data-step="question" {% if dialog_step == 'feedback' %}hidden{% endif %}>
+            <h2 id="satisfaction-title">Your cover letter is ready 🎉</h2>
+            <p>You've completed {{ max_revisions }} revisions. Are you satisfied with your cover letter?</p>
+            <div class="dialog-actions">
+                <form method="post" action="/cover-letter/satisfaction">
+                    <input type="hidden" name="job_application_id" value="{{ job_application_id }}" />
+                    <input type="hidden" name="satisfied" value="yes" />
+                    <button type="submit" class="btn">YES</button>
+                </form>
+                <button type="button" class="btn btn-ghost" data-show-feedback>NO</button>
+            </div>
+        </div>
+        <form data-step="feedback" method="post" action="/cover-letter/satisfaction" {% if dialog_step != 'feedback' %}hidden{% endif %}>
+            <h2>What would you like to improve?</h2>
+            <p>Your feedback helps us improve the cover letter experience.</p>
+            <input type="hidden" name="job_application_id" value="{{ job_application_id }}" />
+            <input type="hidden" name="satisfied" value="no" />
+            <textarea class="input" name="feedback" rows="4" placeholder="Write your feedback here..." aria-label="Your feedback" required>{{ feedback_draft }}</textarea>
+            <div class="dialog-actions">
+                <button type="submit" class="btn">Submit Feedback</button>
+            </div>
+        </form>
+        {% endif %}
+    </div>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+{% if satisfaction_due and job_application_id %}
+<script>
+    (function () {
+        const overlay = document.getElementById('satisfaction-dialog');
+        overlay.querySelector('[data-close-dialog]').addEventListener('click', function () {
+            overlay.hidden = true;
+        });
+        const noButton = overlay.querySelector('[data-show-feedback]');
+        if (noButton) {
+            noButton.addEventListener('click', function () {
+                overlay.querySelector('[data-step="question"]').hidden = true;
+                const feedbackStep = overlay.querySelector('[data-step="feedback"]');
+                feedbackStep.hidden = false;
+                feedbackStep.querySelector('textarea').focus();
+            });
+        }
+    })();
+</script>
+{% endif %}
 {% endblock %}

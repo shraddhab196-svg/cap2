@@ -41,11 +41,10 @@ class CandidateNameTests(unittest.TestCase):
         named = cover_letter_generator.build_cover_letter_plan_prompt(*args, "Jane Doe")
         final = cover_letter_generator.build_cover_letter_prompt(*args, {"hook": "x"}, "Jane Doe")
         unnamed = cover_letter_generator.build_cover_letter_prompt(*args, {"hook": "x"}, None)
-        self.assertIn("Candidate name: Jane Doe.", named)
-        self.assertIn("Candidate name: Jane Doe. Sign the letter with exactly this name", final)
+        self.assertIn("Candidate identity: Jane Doe.", named)
+        self.assertIn("Sign the letter with the candidate's name exactly as: Jane Doe", final)
         self.assertNotIn("Candidate name:", unnamed)
-        self.assertIn("never invent or guess a name", unnamed)
-
+        self.assertIn("Do not invent or guess a name", unnamed)
     def test_a_letter_without_a_particular_name_is_accepted(self):
         cover_letter_generator.validate_generated_letter(LETTER.replace("Jane Doe", "Sam Lee"), ANCHORS[:1], "ML engineer")
 

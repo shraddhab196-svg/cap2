@@ -27,6 +27,30 @@ def read_limited(file: UploadFile) -> bytes:
     if len(data) > MAX_UPLOAD_BYTES:
         raise ValueError(f"{file.filename or 'That file'} is larger than 5 MB. Please upload a smaller file.")
     return data
+NAME_HEADER_WORDS = {
+    "resume", "résumé", "curriculum", "vitae", "cv", "profile", "summary", "contact", "about", "personal", "details",
+    "information", "experience", "education", "skills", "objective", "professional", "work",
+}
+NAME_SEPARATORS = re.compile(r"\s*[|•·,;–—]\s*|\s+-\s+")
+NAME_TOKEN = re.compile(r"^[^\W\d_]+(?:[.'’-][^\W\d_]*)*\.?$")
+
+
+def extract_candidate_name(resume_text: str) -> str | None:
+    """Return the candidate's name from the top of their own resume, or None when it is not clearly identifiable."""
+    lines = [line.strip() for line in (resume_text or "").splitlines() if line.strip()]
+    for line in lines[:5]:
+        candidate = NAME_SEPARATORS.split(line, maxsplit=1)[0].strip()
+        if not candidate or any(char.isdigit() for char in candidate) or "@" in candidate or "http" in candidate.lower() or "www." in candidate.lower():
+            continue
+        tokens = candidate.split()
+        if not 2 <= len(tokens) <= 4 or len(candidate) > 50:
+            continue
+        if any(token.lower().strip(".:") in NAME_HEADER_WORDS for token in tokens):
+            continue
+        if not all(NAME_TOKEN.match(token) for token in tokens):
+            continue
+        return candidate.title() if candidate.isupper() else candidate
+    return None
 
 
 def read_uploaded_text(file: UploadFile) -> str:
