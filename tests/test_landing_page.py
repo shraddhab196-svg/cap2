@@ -1,4 +1,5 @@
 import unittest
+from unittest.mock import patch
 
 from fastapi.testclient import TestClient
 
@@ -33,7 +34,8 @@ class LandingPageTests(unittest.TestCase):
                     self.assertTrue((app.BASE_DIR / "static" / asset).is_file())
 
     def test_health_check_answers_get_and_head(self):
-        self.assertEqual(self.client.get("/healthz").json(), {"ok": True})
+        with patch.dict("os.environ", {"RENDER_GIT_COMMIT": "abc1234def"}):
+            self.assertEqual(self.client.get("/healthz").json(), {"ok": True, "commit": "abc1234"})
         self.assertEqual(self.client.head("/healthz").status_code, 200)
 
 

@@ -1,0 +1,50 @@
+name: CI
+
+# Tests every push and PR. After a push to main, waits for Render to deploy that commit and checks the live site.
+on:
+  push:
+    branches: [main, dev]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: pip install -r requirements.txt pytest
+      - run: python -m pytest -q -p no:warnings
+
+  live:
+    # Render deploys main on its own (autoDeploy in render.yaml); this only confirms the new commit is serving.
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: test
+    runs-on: ubuntu-latest
+    env:
+      APP: ${{ vars.APP_URL || 'https://cap2-hi8u.onrender.com' }}
+    steps:
+      - name: Wait for this commit to go live
+        run: |
+          want="${GITHUB_SHA::7}"
+          for i in $(seq 1 40); do
+            got=$(curl -s --max-time 60 "$APP/healthz" | python3 -c 'import json,sys; print(json.load(sys.stdin).get("commit",""))' 2>/dev/null || true)
+            echo "attempt $i: live=${got:-none} want=$want"
+            [ "$got" = "$want" ] && exit 0
+            sleep 30
+          done
+          echo "::error::$want was not live after 20 minutes. Check the deploy in the Render dashboard."
+          exit 1
+      - name: Check the main pages
+        run: |
+          for path in / /login /signup /privacy; do
+            code=$(curl -s -o /dev/null -w "%{http_code}" --max-time 60 "$APP$path")
+            echo "$path $code"
+            [ "$code" = "200" ] || exit 1
+          done
