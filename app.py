@@ -453,7 +453,8 @@ def render_cover_letter_page(request: Request, user: dict[str, Any], job_applica
 @app.api_route("/healthz", methods=["GET", "HEAD"])
 async def healthz():
     # For the host's health checks: answers without touching Supabase or Groq, so a slow provider can't trigger restarts.
-    return {"ok": True}
+    # commit: Render sets RENDER_GIT_COMMIT, so CI can tell when a new deploy is live.
+    return {"ok": True, "commit": os.getenv("RENDER_GIT_COMMIT", "")[:7]}
 
 
 @app.get("/", response_class=HTMLResponse)
