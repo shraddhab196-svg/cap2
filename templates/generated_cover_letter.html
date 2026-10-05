@@ -93,8 +93,8 @@
             </form>
         </div>
         {% elif satisfaction == 'not_satisfied' %}
-        <h2 id="satisfaction-title">Thank you for your feedback.</h2>
-        <p>Your feedback has been saved and will help us improve Cover Letter AI.</p>
+        <h2 id="satisfaction-title">Thank you for your feedback!</h2>
+        <p>Your feedback has been saved and will help us improve your Cover Letter AI experience.</p>
         {% else %}
         {% if error %}
         <div class="alert" role="alert">{{ error }}</div>
@@ -113,7 +113,7 @@
         </div>
         <form data-step="feedback" method="post" action="/cover-letter/satisfaction" {% if dialog_step != 'feedback' %}hidden{% endif %}>
             <h2>What would you like to improve?</h2>
-            <p>Your feedback helps us improve the cover letter experience.</p>
+            <p>Your feedback helps us improve your Cover Letter AI experience.</p>
             <input type="hidden" name="job_application_id" value="{{ job_application_id }}" />
             <input type="hidden" name="satisfied" value="no" />
             <textarea class="input" name="feedback" rows="4" placeholder="Write your feedback here..." aria-label="Your feedback" required>{{ feedback_draft }}</textarea>

@@ -587,6 +587,20 @@
   text-align: center;
 }
 
+/* Dialog-sized headings: the page-level h2 (up to 2rem, line-height 1.02, balanced wrap) split them awkwardly. */
+.satisfaction-dialog h2 {
+  font-size: clamp(1.3rem, 2.2vw, 1.5rem);
+  line-height: 1.25;
+  text-wrap: pretty;
+}
+
+.satisfaction-dialog h2 + p {
+  margin-top: 10px;
+  margin-bottom: 18px;
+  color: var(--ink-soft);
+  text-wrap: balance;
+}
+
 .satisfaction-dialog textarea {
   text-align: left;
   margin-bottom: 16px;

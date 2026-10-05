@@ -2,8 +2,8 @@ from __future__ import annotations
 
 import json
 import os
+import threading
 from datetime import datetime, timezone
-from functools import lru_cache
 from pathlib import Path
 from typing import Any
 
@@ -42,12 +42,26 @@ def get_client(access_token: str | None = None, refresh_token: str | None = None
     return _client_for(url, key, access_token or "")
 
 
-@lru_cache(maxsize=64)
+_thread_clients = threading.local()
+MAX_CLIENTS_PER_THREAD = 64
+
+
 def _client_for(url: str, key: str, access_token: str) -> Client:
-    # ponytail: one cached client per token (connection reuse); 64 concurrent sessions per process before rebuilds.
-    client = create_client(url, key)
-    if access_token:
-        client.postgrest.auth(access_token)
+    # One cached client per token *per thread*. A client must never be shared across threads: postgrest talks
+    # HTTP/2, and httpcore compresses request headers without a lock, so concurrent use of one connection can
+    # corrupt headers (seen as "Invalid API key" / dropped connections in /profile/setup's parallel loaders).
+    clients = getattr(_thread_clients, "clients", None)
+    if clients is None:
+        clients = _thread_clients.clients = {}
+    cache_key = (url, key, access_token)
+    client = clients.get(cache_key)
+    if client is None:
+        if len(clients) >= MAX_CLIENTS_PER_THREAD:
+            clients.clear()
+        client = create_client(url, key)
+        if access_token:
+            client.postgrest.auth(access_token)
+        clients[cache_key] = client
     return client
 
 
