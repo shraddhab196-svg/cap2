@@ -66,6 +66,43 @@ class SignupLoginTests(unittest.TestCase):
         self.assertIn("already exists", response.text)
         self.assertNotIn("Check your inbox", response.text)
 
+    def test_google_button_only_shows_when_turned_on(self):
+        with patch.dict("os.environ", {"GOOGLE_SIGN_IN": ""}):
+            self.assertNotIn("/auth/google", self.client.get("/login").text)
+        with patch.dict("os.environ", {"GOOGLE_SIGN_IN": "1"}):
+            self.assertIn('href="/auth/google"', self.client.get("/login").text)
+            self.assertIn('href="/auth/google"', self.client.get("/signup").text)
+
+    def test_google_sign_in_round_trip(self):
+        with patch.dict("os.environ", {"GOOGLE_SIGN_IN": "1", "SUPABASE_URL": "https://ref.supabase.co", "APP_URL": "https://app.example"}):
+            start = self.client.get("/auth/google")
+            target = start.headers["location"]
+            self.assertTrue(target.startswith("https://ref.supabase.co/auth/v1/authorize?provider=google&"))
+            self.assertIn("redirect_to=https%3A%2F%2Fapp.example%2Fauth%2Fcallback", target)
+            self.assertIn("code_challenge_method=s256", target)
+
+            session = SimpleNamespace(access_token=jwt(3600), refresh_token="r1")
+            self.supabase.auth.exchange_code_for_session.return_value = SimpleNamespace(user=SimpleNamespace(id="auth-1", email="Jane@Gmail.com"), session=session)
+            back = self.client.get("/auth/callback?code=abc")
+            self.assertEqual(back.headers["location"], "/profile/setup")
+            sent = self.supabase.auth.exchange_code_for_session.call_args.args[0]
+            self.assertEqual(sent["auth_code"], "abc")
+            self.assertEqual(len(sent["code_verifier"]), 64)
+
+            # The verifier is single-use: replaying the callback fails instead of logging in again.
+            replay = self.client.get("/auth/callback?code=abc")
+            self.assertIn("Google sign-in didn", replay.text)
+
+    def test_google_callback_without_our_verifier_is_refused(self):
+        # A link crafted by someone else (login CSRF) arrives with no verifier in this browser's session.
+        response = self.client.get("/auth/callback?code=attacker")
+        self.assertIn("Google sign-in didn", response.text)
+        self.supabase.auth.exchange_code_for_session.assert_not_called()
+
+    def test_google_cancel_shows_a_message(self):
+        response = self.client.get("/auth/callback?error=access_denied&error_description=User+cancelled")
+        self.assertIn("Google sign-in didn", response.text)
+
     def test_signup_without_confirmation_goes_straight_to_profile(self):
         self.supabase.auth.sign_up.return_value = auth_result(access_token=jwt(3600))
         response = self.client.post("/signup", data={"email": "jane@example.com", "password": "letters123"})

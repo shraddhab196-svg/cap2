@@ -14,6 +14,7 @@ from concurrent.futures import ThreadPoolExecutor
 from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Any
+from urllib.parse import urlencode
 
 import anyio.to_thread
 from dotenv import load_dotenv
@@ -25,6 +26,7 @@ from pydantic import ValidationError as PydanticValidationError
 from starlette.exceptions import HTTPException as StarletteHTTPException
 from starlette.middleware.sessions import SessionMiddleware
 from supabase import create_client
+from supabase_auth.helpers import generate_pkce_challenge, generate_pkce_verifier
 
 from src.anchor_generator import generate_anchors
 from src.company_researcher import research_company
@@ -103,6 +105,8 @@ templates.env.globals.update(
     MIN_COVER_LETTERS=MIN_COVER_LETTERS,
     MAX_COVER_LETTERS=MAX_COVER_LETTERS,
     COVER_LETTER_REQUIREMENT_MESSAGE=COVER_LETTER_REQUIREMENT_MESSAGE,
+    # Turn on after enabling the Google provider in Supabase; read per request so tests can flip it.
+    google_sign_in=lambda: os.getenv("GOOGLE_SIGN_IN", "").lower() in ("1", "true", "on"),
 )
 
 
@@ -537,6 +541,43 @@ def login(request: Request, email: str = Form(...), password: str = Form(...)):
         return RedirectResponse(url="/profile/setup", status_code=303)
     except Exception as exc:
         return templates.TemplateResponse("login.html", {"request": request, "error": friendly_auth_error(exc), "email": email})
+
+
+GOOGLE_FAILED = "Google sign-in didn't finish. Please try again, or use your email and password."
+
+
+@app.get("/auth/google")
+def google_sign_in(request: Request):
+    # PKCE: the verifier stays in this browser's signed session, so only the browser that started the sign-in can finish it.
+    verifier = generate_pkce_verifier()
+    request.session["oauth_verifier"] = verifier
+    query = urlencode({
+        "provider": "google",
+        "redirect_to": app_url(request, "/auth/callback"),
+        "code_challenge": generate_pkce_challenge(verifier),
+        "code_challenge_method": "s256",
+    })
+    return RedirectResponse(url=f"{os.getenv('SUPABASE_URL', '').rstrip('/')}/auth/v1/authorize?{query}", status_code=303)
+
+
+@app.get("/auth/callback", response_class=HTMLResponse)
+def google_callback(request: Request, code: str = "", error_description: str = ""):
+    verifier = request.session.pop("oauth_verifier", None)
+    if not code or not verifier:
+        if error_description:
+            logging.getLogger(__name__).info("google sign-in stopped: %s", error_description)
+        return templates.TemplateResponse("login.html", {"request": request, "error": GOOGLE_FAILED})
+    try:
+        auth_response = get_supabase_client().auth.exchange_code_for_session({
+            "auth_code": code, "code_verifier": verifier, "redirect_to": app_url(request, "/auth/callback"),
+        })
+        if not auth_response.session or not auth_response.user:
+            raise RuntimeError("Code exchange returned no session.")
+    except Exception as exc:
+        logging.getLogger(__name__).error("google sign-in failed: %s", exc)
+        return templates.TemplateResponse("login.html", {"request": request, "error": GOOGLE_FAILED})
+    start_session(request, auth_response.user, normalize_email(auth_response.user.email), auth_response.session)
+    return RedirectResponse(url="/profile/setup", status_code=303)
 
 
 @app.get("/logout")

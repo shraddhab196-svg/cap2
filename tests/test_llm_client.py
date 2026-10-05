@@ -58,6 +58,18 @@ class GatewayTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "GROQ_API_KEY"):
                 llm_client.get_router()
 
+    def test_second_groq_key_is_tried_after_the_first(self):
+        llm_client.get_router.cache_clear()
+        self.addCleanup(llm_client.get_router.cache_clear)
+        with patch.dict(os.environ, {"GROQ_API_KEY": "key-one", "GROQ_API_KEY_2": "key-two", "GROQ_MODEL": "llama-x", "LLM_FALLBACK_MODELS": "openrouter/a"}):
+            os.environ.pop("LLM_MODEL", None)
+            router = llm_client.get_router()
+        deployments = [(d["model_name"], d["litellm_params"]["model"], d["litellm_params"].get("api_key")) for d in router.model_list]
+        self.assertEqual(deployments[0], ("m0", "groq/llama-x", None))
+        self.assertEqual(deployments[1], ("m1", "groq/llama-x", "key-two"))  # same model, second key, before other providers
+        self.assertEqual(deployments[2][1], "openrouter/a")
+        self.assertEqual(router.fallbacks, [{"m0": ["m1", "m2"]}])
+
     def test_model_settings_come_from_the_environment(self):
         with patch.dict(os.environ, {"GROQ_MODEL": "llama-x", "LLM_FALLBACK_MODELS": " openrouter/a , together_ai/b ,"}, clear=False):
             os.environ.pop("LLM_MODEL", None)

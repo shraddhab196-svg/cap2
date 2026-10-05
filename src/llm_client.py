@@ -64,8 +64,13 @@ def get_router() -> Router:
     missing = litellm.validate_environment(model=models[0]).get("missing_keys") or []
     if missing:
         raise ValueError(f"Missing {', '.join(missing)} for {models[0]}. Add it to your .env file.")
-    model_list = [{"model_name": f"m{i}", "litellm_params": {"model": model}} for i, model in enumerate(models)]
-    fallbacks = [{"m0": [f"m{i}" for i in range(1, len(models))]}] if len(models) > 1 else []
+    params = [{"model": model} for model in models]
+    if os.getenv("GROQ_API_KEY_2") and models[0].startswith("groq/"):
+        # Same model on a second Groq key, tried first when the main key is rate-limited or failing.
+        # Only helps if the key is from a different Groq account; limits are per account, not per key.
+        params.insert(1, {"model": models[0], "api_key": os.environ["GROQ_API_KEY_2"]})
+    model_list = [{"model_name": f"m{i}", "litellm_params": p} for i, p in enumerate(params)]
+    fallbacks = [{"m0": [f"m{i}" for i in range(1, len(model_list))]}] if len(model_list) > 1 else []
     return Router(model_list=model_list, fallbacks=fallbacks, num_retries=NUM_RETRIES, timeout=TIMEOUT_SECONDS)
 
 
