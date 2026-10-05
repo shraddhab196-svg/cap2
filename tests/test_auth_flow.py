@@ -59,6 +59,13 @@ class SignupLoginTests(unittest.TestCase):
         sent = self.supabase.auth.sign_up.call_args.args[0]
         self.assertTrue(sent["options"]["email_redirect_to"].endswith("/login?confirmed=1"))
 
+    def test_signing_up_again_with_a_taken_email_says_so_instead_of_check_your_inbox(self):
+        # Supabase sends no email for an existing address; it signals it with an empty identities list.
+        self.supabase.auth.sign_up.return_value = SimpleNamespace(user=SimpleNamespace(id="auth-1", identities=[]), session=None)
+        response = self.client.post("/signup", data={"email": "jane@example.com", "password": "letters123"})
+        self.assertIn("already exists", response.text)
+        self.assertNotIn("Check your inbox", response.text)
+
     def test_signup_without_confirmation_goes_straight_to_profile(self):
         self.supabase.auth.sign_up.return_value = auth_result(access_token=jwt(3600))
         response = self.client.post("/signup", data={"email": "jane@example.com", "password": "letters123"})
