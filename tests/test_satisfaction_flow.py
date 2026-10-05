@@ -91,7 +91,7 @@ class SatisfactionFlowTests(unittest.TestCase):
 
         self.mock_chain.return_value = chain(3, satisfaction="not_satisfied")
         html = self.client.get("/cover-letter").text
-        self.assertIn("Thank you for your feedback.", html)
+        self.assertIn("Thank you for your feedback!", html)
         self.assertNotIn(">YES</button>", html)  # the YES/NO question does not come back
         self.assertNotIn('<form class="feedback-form" data-step="feedback"', html)
         self.assertIn(FINAL_TEXT.split("\n")[2], html)  # letter stays visible
@@ -113,7 +113,7 @@ class SatisfactionFlowTests(unittest.TestCase):
         self.mock_satisfaction.side_effect = Exception("database unavailable")
         html = self.answer("no", "Too formal").text
         self.assertIn("We couldn&#39;t save your response. Please try again.", html)
-        self.assertNotIn("Thank you for your feedback.", html)
+        self.assertNotIn("Thank you for your feedback!", html)
         self.assertIn('data-step="question" hidden', html)
         self.assertIn('action="/cover-letter/satisfaction" >', html)  # feedback step visible (no hidden attr)
         self.assertIn(">Too formal</textarea>", html)
@@ -141,8 +141,8 @@ class SatisfactionFlowTests(unittest.TestCase):
 
         self.answer("no", "test 1")  # puts the workflow in the session
         html = self.client.get("/cover-letter").text
-        self.assertIn("Thank you for your feedback.", html)
-        self.assertIn("Your feedback has been saved and will help us improve Cover Letter AI.", html)
+        self.assertIn("Thank you for your feedback!", html)
+        self.assertIn("Your feedback has been saved and will help us improve your Cover Letter AI experience.", html)
         self.assertNotIn(">YES</button>", html)
         self.assertNotIn(">NO</button>", html)
         self.assertNotIn('<form class="feedback-form" data-step="feedback"', html)
