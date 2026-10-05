@@ -765,6 +765,12 @@ def job_input_page(request: Request):
         return RedirectResponse(url="/login", status_code=303)
 
 
+NO_COMPANY_RESEARCH = (
+    "The company website could not be read. For company evidence, use only what the job description says "
+    "about the company, and do not invent any other company facts."
+)
+
+
 @app.post("/profile/job-input", response_class=HTMLResponse)
 def submit_job_input(request: Request, job_description: str = Form(...), company_url: str = Form(...)):
     try:
@@ -780,7 +786,12 @@ def submit_job_input(request: Request, job_description: str = Form(...), company
         user_id = str(user["id"])
         access_token, refresh_token = get_request_session_tokens(request)
         enforce_daily_limit(request, user_id)
-        company_research = research_company(company_url_value)
+        try:
+            company_research = research_company(company_url_value)["company_research"]
+        except Exception as exc:
+            # The site may block bots, be down or be private: log it and carry on with the job description alone.
+            logger.warning("company research failed url=%s: %s: %s", company_url_value, type(exc).__name__, exc)
+            company_research = NO_COMPANY_RESEARCH
         # Use this user's uploaded cover letters (the local extracted_letters folder held 8 letters and pushed
         # the anchor request over Groq's 7000 input-token limit).
         letter_rows = get_cover_letters_for_user(user_id, access_token=access_token, refresh_token=refresh_token)
@@ -794,7 +805,7 @@ def submit_job_input(request: Request, job_description: str = Form(...), company
         anchor_payload = generate_anchors(
             company_url=company_url_value,
             job_description=jd,
-            company_research=company_research["company_research"],
+            company_research=company_research,
             letters=letters,
         )
         anchors = anchor_payload.get("anchors") if isinstance(anchor_payload, dict) else None

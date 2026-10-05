@@ -66,8 +66,11 @@ class FullJourneyTests(unittest.TestCase):
 
     def test_service_failures_show_a_message_not_a_crash(self):
         self.sign_up_and_build_profile()
-        research_down = self.client.post("/profile/job-input", data={"job_description": "Senior AI engineer", "company_url": "https://fail.example.com"})
-        self.assert_page(research_down, "Request timed out while fetching the company website")
+        # An unreadable company site is logged, and the user still gets angles from the job description.
+        with self.assertLogs("app", "WARNING") as logs:
+            research_down = self.client.post("/profile/job-input", data={"job_description": "Senior AI engineer", "company_url": "https://fail.example.com"})
+        self.assert_page(research_down, "Generated angles")
+        self.assertIn("company research failed url=https://fail.example.com", "\n".join(logs.output))
 
         angles = self.client.post("/profile/job-input", data={"job_description": "FAIL please", "company_url": "https://example.com"})
         with self.assertLogs("app", "ERROR"):
