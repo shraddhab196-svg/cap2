@@ -37,8 +37,12 @@ class PublicUrlTests(unittest.TestCase):
 
     def test_public_site_is_fetched(self):
         page = SimpleNamespace(is_redirect=False, text="<p>Hello</p>", raise_for_status=lambda: None)
-        with patch("socket.getaddrinfo", resolves_to("93.184.216.34")), patch("requests.get", return_value=page):
+        with patch("socket.getaddrinfo", resolves_to("93.184.216.34")), patch("requests.get", return_value=page) as get:
             self.assertEqual(company_researcher.fetch_company_html("https://public.example"), "<p>Hello</p>")
+        # Browser-style headers: some sites (dhan.ai) answer 406 to python-requests' defaults.
+        headers = get.call_args.kwargs["headers"]
+        self.assertIn("text/html", headers["Accept"])
+        self.assertTrue(headers["User-Agent"].startswith("Mozilla/5.0"))
 
 
 if __name__ == "__main__":

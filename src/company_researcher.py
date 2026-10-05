@@ -26,6 +26,12 @@ def load_environment() -> None:
 
 
 MAX_REDIRECTS = 5
+# Some sites (e.g. dhan.ai) answer 406 to python-requests' default headers, so send what a browser-based reader would.
+REQUEST_HEADERS = {
+    "User-Agent": "Mozilla/5.0 (compatible; CoverLetterAI/1.0)",
+    "Accept": "text/html,application/xhtml+xml;q=0.9,*/*;q=0.8",
+    "Accept-Language": "en",
+}
 
 
 def check_public_url(url: str) -> None:
@@ -54,7 +60,7 @@ def fetch_company_html(company_url: str, timeout: int = 15) -> str:
         url = company_url.strip()
         for _ in range(MAX_REDIRECTS + 1):
             check_public_url(url)
-            response = requests.get(url, timeout=timeout, allow_redirects=False)
+            response = requests.get(url, timeout=timeout, allow_redirects=False, headers=REQUEST_HEADERS)
             if not response.is_redirect:
                 break
             url = urljoin(url, response.headers["location"])
