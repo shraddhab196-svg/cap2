@@ -32,5 +32,35 @@ class AnchorGeneratorRequestTests(unittest.TestCase):
         self.assertEqual(len(payload["anchors"]), 3)
 
 
+def run(anchors):
+    client = MagicMock()
+    client.chat.completions.create.return_value = SimpleNamespace(choices=[SimpleNamespace(message=SimpleNamespace(content=json.dumps({"anchors": anchors})))])
+    with patch.object(anchor_generator, "load_environment"), patch.object(anchor_generator, "get_llm_client", return_value=(client, "model")):
+        return anchor_generator.generate_anchors("https://example.com", "JD", "research", [("letter", "text")])["anchors"]
+
+
+class FewAnglesTests(unittest.TestCase):
+    """Users always reach the angles page: fewer than 3 angles, or thin ones, are fine."""
+
+    def test_one_or_two_angles_are_kept(self):
+        self.assertEqual(len(run([anchor(1)])), 1)
+        self.assertEqual(len(run([anchor(1), anchor(2)])), 2)
+
+    def test_angles_missing_evidence_are_kept_and_filled_in(self):
+        thin = {"title": "Fit", "anchor": "Connect your pipeline work to their data needs."}  # no evidence fields at all
+        kept = run([thin])
+        self.assertEqual(kept[0]["title"], "Fit")
+        self.assertEqual(kept[0]["company_evidence"], "")
+        self.assertEqual(kept[0]["source_url"], "https://example.com")
+
+    def test_no_usable_angle_falls_back_to_a_general_one(self):
+        for anchors in ([], [{"title": "", "anchor": ""}], ["not an object"]):
+            with self.subTest(anchors=anchors):
+                kept = run(anchors)
+                self.assertEqual(len(kept), 1)
+                self.assertEqual(kept[0]["title"], anchor_generator.FALLBACK_ANCHOR["title"])
+                self.assertEqual(kept[0]["source_url"], "https://example.com")
+
+
 if __name__ == "__main__":
     unittest.main()

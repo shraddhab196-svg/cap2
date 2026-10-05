@@ -26,6 +26,21 @@ class AnchorOutputError(ValueError):
     """Raised when the LLM JSON is missing or malformed."""
 
 
+ANCHOR_FIELDS = ("title", "company_evidence", "job_connection", "candidate_evidence", "anchor", "source_url")
+# Offered when the model returns no usable angle, so the user can still go on and get a letter.
+FALLBACK_ANCHOR = {
+    "title": "Your strongest match for this role",
+    "anchor": "Lead with the experience from your past letters that best matches the main requirements in this job description.",
+    "company_evidence": "",
+    "job_connection": "The core requirements and responsibilities in the job description.",
+    "candidate_evidence": "Your most relevant past work, taken from your own letters.",
+}
+
+
+def text(value: Any) -> str:
+    return value.strip() if isinstance(value, str) else ""
+
+
 def load_environment() -> None:
     """Load environment variables from the project root .env file if present."""
     project_root = Path(__file__).resolve().parent.parent
@@ -219,35 +234,22 @@ def generate_anchors(company_url: str, job_description: str, company_research: s
         logger.error("Groq returned invalid JSON content (%d characters).", len(raw_content))
         raise AnchorOutputError("Groq returned an invalid anchors list.")
 
-    required_fields = {"title", "company_evidence", "job_connection", "candidate_evidence", "anchor", "source_url"}
-    for anchor in anchors:
-        if not isinstance(anchor, dict):
-            logger.error("Groq returned invalid JSON content (%d characters).", len(raw_content))
-            raise AnchorOutputError("Every anchor must be a JSON object.")
-        missing_fields = sorted(required_fields - set(anchor.keys()))
-        if missing_fields:
-            logger.error("Groq returned invalid JSON content (%d characters).", len(raw_content))
-            raise AnchorOutputError(f"Each anchor must include the required fields: {missing_fields}")
-
+    # An angle needs a title and a pitch; the evidence fields are nice to have and are blanked when missing.
+    # Never block the user here: thin research (e.g. an unreadable company site) can leave only one or two.
     useful_anchors: list[dict[str, Any]] = []
     for index, anchor in enumerate(anchors, start=1):
-        reasons: list[str] = []
-        if not isinstance(anchor, dict):
-            reasons.append("anchor was not an object")
-        for field in ["title", "company_evidence", "job_connection", "candidate_evidence", "anchor", "source_url"]:
-            value = anchor.get(field) if isinstance(anchor, dict) else None
-            if value is None or (isinstance(value, str) and not value.strip()):
-                reasons.append(f"{field} was empty")
-        if not reasons:
-            useful_anchors.append(anchor)
-        else:
-            logger.info("anchor %d rejected: %s", index, "; ".join(reasons))
+        if not isinstance(anchor, dict) or not text(anchor.get("title")) or not text(anchor.get("anchor")):
+            logger.info("anchor %d rejected: no title or pitch", index)
+            continue
+        cleaned = {field: text(anchor.get(field)) for field in ANCHOR_FIELDS}
+        cleaned["source_url"] = cleaned["source_url"] or company_url
+        useful_anchors.append(cleaned)
 
     # Counts only: anchors quote the user's resume and letters, which must not end up in server logs.
     logger.info("anchors: %d returned, %d useful", len(anchors), len(useful_anchors))
-
-    if len(useful_anchors) < 3:
-        raise ValueError("Fewer than 3 useful anchors were generated.")
+    if not useful_anchors:
+        logger.warning("no usable anchors, offering the general one")
+        useful_anchors = [{**FALLBACK_ANCHOR, "source_url": company_url}]
 
     payload["company_url"] = company_url
     payload["anchors"] = useful_anchors[:5]

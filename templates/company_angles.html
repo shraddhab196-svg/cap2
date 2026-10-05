@@ -33,9 +33,9 @@
                     </label>
                     <p class="angle-pitch">{{ anchor.anchor }}</p>
                     <dl class="evidence">
-                        <div><dt>Company evidence</dt><dd>{{ anchor.company_evidence }}</dd></div>
-                        <div><dt>Job connection</dt><dd>{{ anchor.job_connection }}</dd></div>
-                        <div><dt>Candidate evidence</dt><dd>{{ anchor.candidate_evidence }}</dd></div>
+                        {% if anchor.company_evidence %}<div><dt>Company evidence</dt><dd>{{ anchor.company_evidence }}</dd></div>{% endif %}
+                        {% if anchor.job_connection %}<div><dt>Job connection</dt><dd>{{ anchor.job_connection }}</dd></div>{% endif %}
+                        {% if anchor.candidate_evidence %}<div><dt>Candidate evidence</dt><dd>{{ anchor.candidate_evidence }}</dd></div>{% endif %}
                     </dl>
                 </div>
                 {% endfor %}
