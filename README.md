@@ -66,7 +66,7 @@ python scripts/fake_backend.py
 
 Open http://127.0.0.1:8000 and sign up with any email. This runs the real app against an in-memory database and a fake AI that waits `FAKE_LATENCY` seconds (default 3), so you can click through everything. Data resets on restart.
 
-To try the error paths: an email starting with `fail` can't log in, a company URL containing `fail` times out, and a job description containing `FAIL` (or `BUSY`) makes generation fail (or hit the rate limit).
+To try the error paths: an email starting with `fail` can't log in, a company URL containing `fail` times out (logged, and the app carries on with the job description alone), and a job description containing `FAIL` (or `BUSY`) makes generation fail (or hit the rate limit).
 
 ## Running it for real
 

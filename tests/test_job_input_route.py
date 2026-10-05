@@ -90,6 +90,20 @@ class JobInputRouteTests(unittest.TestCase):
         self.assertEqual(mock_letters.call_count, 1)
         self.assertEqual(mock_generate.call_args.kwargs["letters"], [("letter1.txt", "I led a project")])
 
+    def test_unreadable_company_site_is_logged_and_the_user_moves_on(self):
+        for failure in (ValueError("We couldn't open that website."), TimeoutError("timed out"), RuntimeError("boom")):
+            with self.subTest(failure=type(failure).__name__), \
+                 patch.object(app, "app_user_for_request", return_value=USER), \
+                 patch.object(app, "research_company", side_effect=failure), \
+                 patch.object(app, "get_cover_letters_for_user", return_value=[{"filename": "l.txt", "content": "I led a project"}]), \
+                 patch.object(app, "generate_anchors", return_value={"anchors": [{"title": "A"}]}) as generate, \
+                 self.assertLogs("app", "WARNING") as logs:
+                response = self.client.post("/profile/job-input", data={"job_description": "Senior AI engineer", "company_url": "https://dhan.ai/"}, follow_redirects=False)
+            self.assertEqual(response.headers.get("location"), "/company/angles")
+            self.assertIn(app.NO_COMPANY_RESEARCH, generate.call_args.kwargs["company_research"])
+            self.assertIn("https://dhan.ai/", "\n".join(logs.output))
+            self.assertIn(type(failure).__name__, "\n".join(logs.output))
+
     def test_company_angles_page_renders(self):
         first_title = json.loads((app.BASE_DIR / "tests" / "fixtures" / "sample_anchors.json").read_text(encoding="utf-8"))["anchors"][0]["title"]
         self.submit_job_input()
