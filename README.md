@@ -92,6 +92,8 @@ Copy `.env.example` to `.env` and fill it in. `.env` is git-ignored; never commi
 | `SUPABASE_URL` | yes | Your Supabase project URL |
 | `SUPABASE_ANON_KEY` | yes | The project's public anon key (`SUPABASE_KEY` also works) |
 | `GROQ_API_KEY` | yes | Key for the default AI provider |
+| `GROQ_API_KEY_2` | no | Second Groq key, tried when the first is rate-limited. Groq limits are per account, so use a key from a different account |
+| `GOOGLE_SIGN_IN` | no | `1` shows "Continue with Google" once the Google provider is set up in Supabase |
 | `SESSION_SECRET` | in production | Long random string that signs the login cookie. Without it, logins reset on every restart |
 | `APP_URL` | in production | Public https address. Makes the login cookie https-only and turns on HSTS |
 | `DAILY_AI_LIMIT` | no | Job lookups, drafts and revisions per user per 24 hours (default 40, `0` turns it off) |
