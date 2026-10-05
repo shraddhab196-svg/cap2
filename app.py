@@ -500,6 +500,9 @@ def signup(request: Request, email: str = Form(...), password: str = Form(...)):
         user = getattr(auth_response, "user", None) or (auth_response.get("user") if isinstance(auth_response, dict) else None)
         if not user:
             raise RuntimeError("Sign-up was accepted but no user record was returned.")
+        if not session and getattr(user, "identities", None) == []:
+            # Supabase hides taken emails: it answers like a new signup but sends no email.
+            return templates.TemplateResponse("signup.html", {"request": request, "error": "An account with this email already exists. Log in instead, or check your inbox for the first confirmation email.", "email": email})
         if not session:
             # Email confirmation is on: Supabase sends a link; nothing to log in to yet.
             request.session.clear()
