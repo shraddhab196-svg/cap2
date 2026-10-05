@@ -642,3 +642,26 @@
 .oauth-google::after { content: none; }
 .oauth-or { display: flex; align-items: center; gap: 12px; font-size: 0.82rem; color: var(--ink-faint); }
 .oauth-or::before, .oauth-or::after { content: ""; flex: 1; height: 1px; background: currentColor; opacity: 0.35; }
+
+/* Our own field messages (static/js/app.js), replacing the browser's validation bubbles */
+.field-error {
+    display: flex; align-items: flex-start; gap: 8px;
+    margin: 8px 0 0; padding: 9px 12px;
+    font-size: 0.88rem; line-height: 1.4; color: var(--pen-deep);
+    background: var(--pen-wash); border-left: 2px solid var(--pen); border-radius: 0 8px 8px 0;
+    animation: field-error-in 0.28s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+.field-error::before {
+    content: ""; flex: none; width: 14px; height: 14px; margin-top: 2px;
+    background: currentColor;
+    /* a small pen nib, matching the alert icon's pen motif */
+    -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M12 2l6 9-6 11-6-11z M12 11v6' fill='none' stroke='black' stroke-width='2.2' stroke-linejoin='round'/%3E%3Ccircle cx='12' cy='10' r='1.6'/%3E%3C/svg%3E") center / contain no-repeat;
+            mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M12 2l6 9-6 11-6-11z M12 11v6' fill='none' stroke='black' stroke-width='2.2' stroke-linejoin='round'/%3E%3Ccircle cx='12' cy='10' r='1.6'/%3E%3C/svg%3E") center / contain no-repeat;
+}
+[aria-invalid="true"].input, textarea[aria-invalid="true"] { border-color: var(--pen); box-shadow: 0 0 0 3px var(--pen-wash); }
+.dropzone:has([aria-invalid="true"]) { border-color: var(--pen); background: var(--pen-wash); }
+.angles + .field-error, fieldset + .field-error { margin-top: 14px; }
+@keyframes field-error-in { from { opacity: 0; transform: translateY(-4px); } }
+@media (prefers-reduced-motion: reduce) { .field-error { animation: none; } }
+.upload { flex-wrap: wrap; }
+.upload .field-error { order: 3; flex-basis: 100%; margin-top: 0; }

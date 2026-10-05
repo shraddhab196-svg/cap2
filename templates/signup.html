@@ -6,7 +6,7 @@
 {% block action %}/signup{% endblock %}
 {% block password_placeholder %}Create a password{% endblock %}
 {% block password_autocomplete %}new-password{% endblock %}
-{% block password_rules %}minlength="8" maxlength="72" aria-describedby="password-rules" data-password-rules{% endblock %}
+{% block password_rules %}minlength="8" maxlength="72" aria-describedby="password-rules" data-password-rules data-msg-missing="Choose a password: at least 8 characters, with a letter and a number."{% endblock %}
 {% block password_help %}
                         <ul class="rules" id="password-rules">
                             <li data-rule="length">At least 8 characters</li>

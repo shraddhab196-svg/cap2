@@ -150,6 +150,100 @@
         check();
     });
 
+    // --- Our own field messages instead of the browser's plain bubbles. Wording per field via data-msg-missing /
+    // data-msg-format; the server still validates everything.
+    const fieldMessage = (field) => {
+        const v = field.validity;
+        if (v.customError) return field.validationMessage;
+        if (v.valueMissing) {
+            if (field.dataset.msgMissing) return field.dataset.msgMissing;
+            if (field.type === "radio") return "Pick one to continue.";
+            if (field.type === "file") return "Choose a file first.";
+            return "This one's needed before you go on.";
+        }
+        if (field.dataset.msgFormat) return field.dataset.msgFormat;
+        if (v.typeMismatch && field.type === "email") return "That doesn't look like an email yet. Try name@company.com.";
+        if (v.typeMismatch && field.type === "url") return "Use the full web address, like https://company.com.";
+        if (v.tooShort) return `A little more, please: at least ${field.minLength} characters.`;
+        if (v.tooLong) return `That's a bit long: ${field.maxLength} characters at most.`;
+        return "Something's not quite right here.";
+    };
+    // Where the message goes: under the field's wrapper, so it never splits an input from its button.
+    const messageHost = (field) => field.closest(".field, .dropzone, fieldset, .angles") || field;
+    const clearMessage = (field) => {
+        const form = field.form || document;
+        const group = field.type === "radio" ? $$(`input[name="${CSS.escape(field.name)}"]`, form) : [field];
+        group.forEach((item) => {
+            item.removeAttribute("aria-invalid");
+            if ("describedby" in item.dataset) {
+                if (item.dataset.describedby) item.setAttribute("aria-describedby", item.dataset.describedby);
+                else item.removeAttribute("aria-describedby");
+            }
+        });
+        const host = messageHost(field);
+        const note = (host.classList.contains("field") ? host : host.parentNode).querySelector(`[data-error-for="${CSS.escape(field.name)}"]`);
+        if (note) note.remove();
+    };
+    document.addEventListener("invalid", (event) => {
+        const field = event.target;
+        event.preventDefault(); // no browser bubble
+        if (field.type === "url" && field.value.trim() && !/^[a-z][a-z0-9+.-]*:\/\//i.test(field.value.trim())) {
+            field.value = `https://${field.value.trim()}`; // pressed Enter before blur: fix up, then try again
+            if (field.validity.valid) {
+                clearMessage(field);
+                // validity.valid (not checkValidity) so no extra invalid events fire for the other fields
+                if (Array.from(field.form.elements).every((el) => el.validity.valid)) setTimeout(() => field.form.requestSubmit());
+                return;
+            }
+        }
+        clearMessage(field);
+        const note = document.createElement("p");
+        note.className = "field-error";
+        note.id = `err-${field.name}`;
+        note.dataset.errorFor = field.name;
+        note.setAttribute("role", "alert");
+        note.textContent = fieldMessage(field);
+        const host = messageHost(field);
+        if (host.classList.contains("field")) host.append(note); // keeps the field's own spacing below the message
+        else host.after(note);
+        field.setAttribute("aria-invalid", "true");
+        if (!("describedby" in field.dataset)) field.dataset.describedby = field.getAttribute("aria-describedby") || "";
+        field.setAttribute("aria-describedby", note.id);
+        // Focus the first problem in the form, once per submit attempt.
+        const form = field.form;
+        if (form && !form.dataset.focused) {
+            form.dataset.focused = "1";
+            (field.type === "file" ? messageHost(field) : field).scrollIntoView({ block: "center", behavior: reduceMotion ? "auto" : "smooth" });
+            field.focus({ preventScroll: true });
+            setTimeout(() => delete form.dataset.focused);
+        }
+    }, true);
+    ["input", "change"].forEach((type) => document.addEventListener(type, (event) => {
+        const field = event.target;
+        if (field.name && field.matches("input, textarea, select") && (field.getAttribute("aria-invalid") || field.type === "radio")) {
+            if (field.checkValidity()) clearMessage(field);
+        }
+    }));
+
+    // Company URLs typed without https:// ("dhan.ai") are fixed up instead of rejected.
+    $$('input[type="url"]').forEach((input) => {
+        input.addEventListener("blur", () => {
+            const value = input.value.trim();
+            if (value && !/^[a-z][a-z0-9+.-]*:\/\//i.test(value)) input.value = `https://${value}`;
+        });
+    });
+
+    // Upload boxes only take PDF or TXT, also when a file is dropped (the accept attribute doesn't stop drops).
+    $$('input[type="file"][accept]').forEach((input) => {
+        input.addEventListener("change", () => {
+            const allowed = input.accept.split(",").map((ext) => ext.trim().toLowerCase());
+            const file = input.files && input.files[0];
+            const ok = !file || allowed.some((ext) => file.name.toLowerCase().endsWith(ext));
+            input.setCustomValidity(ok ? "" : "That file type won't work. Upload a PDF or a .txt file.");
+            if (!ok) input.reportValidity();
+        });
+    });
+
     // --- Slow navigation: a thin progress bar if the next page takes longer than 300 ms.
     const progress = document.createElement("div");
     progress.className = "nav-progress";

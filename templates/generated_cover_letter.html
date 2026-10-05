@@ -45,7 +45,7 @@
                                 <button type="button" class="chip" data-chip="feedback">Stronger opening</button>
                                 <button type="button" class="chip" data-chip="feedback">More specific to the role</button>
                             </div>
-                            <textarea class="input" id="feedback" name="feedback" rows="5" placeholder="Tell us what you'd like to improve..." data-autogrow required></textarea>
+                            <textarea class="input" id="feedback" name="feedback" rows="5" placeholder="Tell us what you'd like to improve..." data-autogrow required data-msg-missing="Tell us what to change, even a few words like 'shorter' or 'warmer' helps."></textarea>
                         </div>
                         <div class="actions" style="margin-top:18px">
                             <button type="submit" class="btn btn-ghost">Revise letter</button>
@@ -116,7 +116,7 @@
             <p>Your feedback helps us improve your Cover Letter AI experience.</p>
             <input type="hidden" name="job_application_id" value="{{ job_application_id }}" />
             <input type="hidden" name="satisfied" value="no" />
-            <textarea class="input" name="feedback" rows="4" placeholder="Write your feedback here..." aria-label="Your feedback" required>{{ feedback_draft }}</textarea>
+            <textarea class="input" name="feedback" rows="4" placeholder="Write your feedback here..." aria-label="Your feedback" required data-msg-missing="Add a few words of feedback before sending.">{{ feedback_draft }}</textarea>
             <div class="dialog-actions">
                 <button type="submit" class="btn">Submit Feedback</button>
             </div>
