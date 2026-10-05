@@ -636,3 +636,9 @@
 .dialog-close:hover {
   color: var(--ink);
 }
+/* Google sign-in, above the email form */
+.oauth { display: grid; gap: 18px; }
+.auth-form .oauth .btn { margin-top: 0; display: inline-flex; align-items: center; justify-content: center; gap: 10px; }
+.oauth-google::after { content: none; }
+.oauth-or { display: flex; align-items: center; gap: 12px; font-size: 0.82rem; color: var(--ink-faint); }
+.oauth-or::before, .oauth-or::after { content: ""; flex: 1; height: 1px; background: currentColor; opacity: 0.35; }
