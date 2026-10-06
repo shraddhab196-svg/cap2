@@ -15,6 +15,9 @@
             <p class="lede rise" style="--i:2">Prepare your profile once for future applications. Your resume tells us what you've done; your past letters tell us how you sound.</p>
         </div>
 
+        {% if notice %}
+        <div class="notice" role="status" style="margin-bottom: 24px">{{ notice }}</div>
+        {% endif %}
         {% if error %}
         <div class="alert" role="alert" style="margin-bottom: 24px">{{ error }}</div>
         {% endif %}

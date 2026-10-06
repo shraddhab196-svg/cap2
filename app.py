@@ -597,7 +597,7 @@ def logout(request: Request):
     return RedirectResponse(url="/login", status_code=303)
 
 
-def render_profile_setup(request: Request, user: dict[str, Any], error: str | None = None):
+def render_profile_setup(request: Request, user: dict[str, Any], error: str | None = None, notice: str | None = None):
     materials = load_profile_materials(request, str(user["id"]))
     resumes = materials["resumes"]
     return templates.TemplateResponse("profile_setup.html", {
@@ -607,13 +607,17 @@ def render_profile_setup(request: Request, user: dict[str, Any], error: str | No
         "resume": resumes[-1] if resumes else None,
         "cover_letters": materials["cover_letters"],
         "error": error,
+        "notice": notice,
     })
 
 
+FILE_UNAVAILABLE = "That file isn't available to download right now. Your profile still uses its text as usual."
+
+
 @app.get("/profile/setup", response_class=HTMLResponse)
-def profile_setup_page(request: Request):
+def profile_setup_page(request: Request, file: str = ""):
     try:
-        return render_profile_setup(request, app_user_for_request(request))
+        return render_profile_setup(request, app_user_for_request(request), notice=FILE_UNAVAILABLE if file == "unavailable" else None)
     except HTTPException:
         return RedirectResponse(url="/login", status_code=303)
 
@@ -684,6 +688,8 @@ def delete_resume_route(request: Request, resume_id: str = Form(...)):
         return RedirectResponse(url="/profile/setup", status_code=303)
     except HTTPException:
         return RedirectResponse(url="/login", status_code=303)
+    except Exception as exc:
+        return profile_setup_with_error(request, exc)
 
 
 @app.post("/profile/cover-letters", response_class=HTMLResponse)
@@ -729,32 +735,43 @@ def delete_cover_letter_route(request: Request, cover_letter_id: str = Form(...)
         return RedirectResponse(url="/profile/setup", status_code=303)
     except HTTPException:
         return RedirectResponse(url="/login", status_code=303)
+    except Exception as exc:
+        return profile_setup_with_error(request, exc)
 
 
 @app.get("/profile/files/{kind}/{row_id}")
 def download_original(request: Request, kind: str, row_id: str):
-    """Send back one of the user's own original files, found through their own rows (RLS applies twice)."""
+    """Send back one of the user's own original files, found through their own rows (RLS applies twice).
+    Anything unavailable returns to profile setup with a quiet note, never an error page."""
+    unavailable = RedirectResponse(url="/profile/setup?file=unavailable", status_code=303)
     try:
         user = app_user_for_request(request)
     except HTTPException:
         return RedirectResponse(url="/login", status_code=303)
-    access_token, refresh_token = get_request_session_tokens(request)
     loaders = {"resume": get_resumes_for_user, "letter": get_cover_letters_for_user}
     if kind not in loaders:
-        raise HTTPException(status_code=404)
-    rows = loaders[kind](str(user["id"]), access_token=access_token, refresh_token=refresh_token)
-    row = next((row for row in rows if str(row.get("id")) == row_id), None)
-    path = (row or {}).get("storage_path") or ""
-    if not path or path.startswith("/"):  # missing, or an old label from before files were kept
-        raise HTTPException(status_code=404)
+        return unavailable
     try:
+        access_token, refresh_token = get_request_session_tokens(request)
+        rows = loaders[kind](str(user["id"]), access_token=access_token, refresh_token=refresh_token)
+        row = next((row for row in rows if str(row.get("id")) == row_id), None)
+        path = (row or {}).get("storage_path") or ""
+        if not path or path.startswith("/"):  # missing, or an old label from before files were kept
+            return unavailable
         data = download_document(path, access_token=access_token)
     except Exception as exc:
         logger.warning("original file download failed: %s: %s", type(exc).__name__, exc)
-        raise HTTPException(status_code=404) from exc
+        return unavailable
     filename = row.get("filename") or path.rsplit("/", 1)[-1]
     media_type = "application/pdf" if filename.lower().endswith(".pdf") else "text/plain; charset=utf-8"
     return Response(data, media_type=media_type, headers={"Content-Disposition": f"attachment; filename*=UTF-8''{quote(filename)}"})
+
+
+def profile_setup_with_error(request: Request, exc: Exception):
+    try:
+        return render_profile_setup(request, app_user_for_request(request), error=user_error(exc))
+    except Exception:
+        return RedirectResponse(url="/profile/setup", status_code=303)
 
 
 @app.post("/profile/build", response_class=HTMLResponse)

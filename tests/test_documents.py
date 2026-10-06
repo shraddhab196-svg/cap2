@@ -82,7 +82,32 @@ class DocumentStorageTests(unittest.TestCase):
         self.assertEqual(ok.headers["content-type"], "application/pdf")
         self.assertIn("filename*=UTF-8''My%20letter.pdf", ok.headers["content-disposition"])
         download.assert_called_once_with("auth-1/letters/a-My_letter.pdf", access_token="token")
-        self.assertEqual([missing.status_code, label_only.status_code, bad_kind.status_code], [404, 404, 404])
+        # Anything unavailable goes back to profile setup with a quiet note, never an error page.
+        for response in (missing, label_only, bad_kind):
+            self.assertEqual((response.status_code, response.headers["location"]), (303, "/profile/setup?file=unavailable"))
+
+    def test_storage_outage_on_download_is_a_quiet_note(self):
+        rows = [{"id": "c1", "filename": "l.pdf", "storage_path": "auth-1/letters/a-l.pdf"}]
+        with patch.object(app, "get_cover_letters_for_user", return_value=rows),              patch.object(app, "download_document", side_effect=RuntimeError("storage down")), self.assertLogs("app", "WARNING"):
+            response = self.client.get("/profile/files/letter/c1")
+            page = self.client.get(response.headers["location"])
+        self.assertEqual(response.headers["location"], "/profile/setup?file=unavailable")
+        self.assertIn("That file isn&#39;t available to download right now.", page.text)
+        self.assertNotIn('role="alert"', page.text)
+
+    def test_storage_outage_on_delete_still_deletes_quietly(self):
+        self.remove.side_effect = RuntimeError("storage down")
+        rows = [{"id": "c1", "storage_path": "auth-1/letters/a-l.txt"}]
+        with patch.object(app, "get_cover_letters_for_user", return_value=rows),              patch.object(app, "delete_cover_letter_for_user") as delete_row, self.assertLogs("app", "WARNING"):
+            response = self.client.post("/profile/cover-letters/delete", data={"cover_letter_id": "c1"})
+        self.assertEqual((response.status_code, response.headers["location"]), (303, "/profile/setup"))
+        delete_row.assert_called_once()
+
+    def test_database_failure_on_delete_shows_a_friendly_message_not_a_crash(self):
+        with patch.object(app, "get_cover_letters_for_user", side_effect=[RuntimeError("db down"), []]), self.assertLogs("app", "ERROR"):
+            response = self.client.post("/profile/cover-letters/delete", data={"cover_letter_id": "c1"})
+        self.assertEqual(response.status_code, 200)
+        self.assertIn(app.GENERIC_ERROR, response.text)
 
 
 class StoragePathTests(unittest.TestCase):
