@@ -14,7 +14,7 @@ from concurrent.futures import ThreadPoolExecutor
 from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Any
-from urllib.parse import urlencode
+from urllib.parse import quote, urlencode
 
 import anyio.to_thread
 from dotenv import load_dotenv
@@ -35,6 +35,7 @@ from src.database import (
     delete_all_resumes_for_user,
     delete_cover_letter_for_user,
     delete_resume_for_user,
+    download_document,
     get_generated_cover_letters_for_job,
     get_job_application,
     get_or_create_app_user,
@@ -43,6 +44,7 @@ from src.database import (
     get_cover_letters_for_user,
     get_resumes_for_user,
     get_style_profile,
+    remove_documents,
     mark_generated_cover_letter_final,
     save_letter_satisfaction,
     save_candidate_profile,
@@ -52,6 +54,7 @@ from src.database import (
     save_resume,
     save_style_profile,
     update_job_application_anchor,
+    upload_document,
 )
 
 from src.llm_client import LLMError
@@ -62,6 +65,7 @@ from src.profile_builder import (
     MIN_COVER_LETTERS,
     build_profile_bundle,
     extract_candidate_name,
+    read_limited,
     read_uploaded_text,
     validate_cover_letters,
 )
@@ -614,26 +618,53 @@ def profile_setup_page(request: Request):
         return RedirectResponse(url="/login", status_code=303)
 
 
+def read_upload(upload: UploadFile, label: str) -> tuple[bytes, str]:
+    """Return the file's bytes (for storage) and its extracted text; both checks run before anything is saved."""
+    if not (upload.filename or "").lower().endswith((".pdf", ".txt")):
+        raise ValueError(f"{upload.filename} isn't a PDF or .txt file. Please upload your {label} as PDF or TXT.")
+    data = read_limited(upload)
+    upload.file.seek(0)
+    text = read_uploaded_text(upload)
+    if not text or not text.strip():
+        raise ValueError(f"We couldn't read any text in {upload.filename}. Please try a different file.")
+    return data, text
+
+
+def store_original(request: Request, kind: str, upload: UploadFile, data: bytes) -> str | None:
+    """Keep the original file in Supabase Storage. Optional: on failure the extracted text is still saved."""
+    auth_id = (request.session.get("auth_user") or {}).get("id")
+    access_token, _ = get_request_session_tokens(request)
+    try:
+        return upload_document(str(auth_id), kind, upload.filename, data, access_token=access_token)
+    except Exception as exc:
+        logger.warning("original file not stored kind=%s: %s: %s", kind, type(exc).__name__, exc)
+        return None
+
+
+def forget_originals(request: Request, paths: list[str | None]) -> None:
+    access_token, _ = get_request_session_tokens(request)
+    try:
+        remove_documents([path for path in paths if path], access_token=access_token)
+    except Exception as exc:
+        logger.warning("original files not removed: %s: %s", type(exc).__name__, exc)
+
+
 @app.post("/profile/resume", response_class=HTMLResponse)
 def upload_resume(request: Request, resume: UploadFile = File(None)):
     try:
         user = app_user_for_request(request)
+        user_id = str(user["id"])
         access_token, refresh_token = get_request_session_tokens(request)
         if resume is None or not resume.filename:
             raise ValueError("Please upload your resume before building your profile.")
-        filename = resume.filename.lower()
-        if not filename.endswith((".pdf", ".txt")):
-            raise ValueError("Unsupported resume file type. Please upload a PDF or TXT file.")
+        data, text = read_upload(resume, "resume")
 
-        text = read_uploaded_text(resume)
-        if not text or not text.strip():
-            raise ValueError("The uploaded resume could not be extracted. Please try a different file.")
-
-        existing_resumes = get_resumes_for_user(str(user["id"]), access_token=access_token, refresh_token=refresh_token)
-        if existing_resumes:
-            delete_all_resumes_for_user(str(user["id"]), access_token=access_token, refresh_token=refresh_token)
-
-        save_resume(str(user["id"]), resume.filename, f"/resumes/{resume.filename}", text, access_token=access_token, refresh_token=refresh_token)
+        old_paths = [row.get("storage_path") for row in get_resumes_for_user(user_id, access_token=access_token, refresh_token=refresh_token)]
+        path = store_original(request, "resume", resume, data)
+        if old_paths:
+            delete_all_resumes_for_user(user_id, access_token=access_token, refresh_token=refresh_token)
+        save_resume(user_id, resume.filename, path, text, access_token=access_token, refresh_token=refresh_token)
+        forget_originals(request, old_paths)
         return RedirectResponse(url="/profile/setup", status_code=303)
     except Exception as exc:
         try:
@@ -647,7 +678,9 @@ def delete_resume_route(request: Request, resume_id: str = Form(...)):
     try:
         user = app_user_for_request(request)
         access_token, refresh_token = get_request_session_tokens(request)
+        rows = get_resumes_for_user(str(user["id"]), access_token=access_token, refresh_token=refresh_token)
         delete_resume_for_user(str(user["id"]), resume_id, access_token=access_token, refresh_token=refresh_token)
+        forget_originals(request, [row.get("storage_path") for row in rows if str(row.get("id")) == resume_id])
         return RedirectResponse(url="/profile/setup", status_code=303)
     except HTTPException:
         return RedirectResponse(url="/login", status_code=303)
@@ -657,26 +690,25 @@ def delete_resume_route(request: Request, resume_id: str = Form(...)):
 def upload_cover_letters(request: Request, files: list[UploadFile] = File(...)):
     try:
         user = app_user_for_request(request)
+        user_id = str(user["id"])
         access_token, refresh_token = get_request_session_tokens(request)
         selected_files = [uploaded for uploaded in files if (uploaded.filename or "").strip()]
-        existing_count = len(get_cover_letters_for_user(str(user["id"]), access_token=access_token, refresh_token=refresh_token))
+        existing_count = len(get_cover_letters_for_user(user_id, access_token=access_token, refresh_token=refresh_token))
 
         if not selected_files:
             raise ValueError("Please select a cover letter before uploading.")
-        if len(selected_files) > 1:
-            raise ValueError("Please upload one cover letter at a time.")
-        if existing_count + len(selected_files) > MAX_COVER_LETTERS:
+        room = MAX_COVER_LETTERS - existing_count
+        if room <= 0:
             raise ValueError(f"You can upload a maximum of {MAX_COVER_LETTERS} previous cover letters.")
+        if len(selected_files) > room:
+            raise ValueError(f"You can add {room} more cover letter{'' if room == 1 else 's'} (maximum {MAX_COVER_LETTERS}).")
 
-        validated = validate_cover_letters(selected_files, min_count=1)
-        for uploaded in selected_files:
-            filename = uploaded.filename.lower()
-            if not filename.endswith((".pdf", ".txt")):
-                raise ValueError(f"Unsupported file type: {uploaded.filename}. Please upload a PDF or TXT cover letter.")
-            text = read_uploaded_text(uploaded)
-            if not text or not text.strip():
-                raise ValueError(f"The file {uploaded.filename} could not be extracted. Please check the document and try again.")
-            save_cover_letter(str(user["id"]), uploaded.filename, text, access_token=access_token, refresh_token=refresh_token)
+        validate_cover_letters(selected_files, min_count=1)
+        # Read every file first, so one unreadable file doesn't leave the others half-saved.
+        readable = [(uploaded, *read_upload(uploaded, "cover letter")) for uploaded in selected_files]
+        for uploaded, data, text in readable:
+            path = store_original(request, "letters", uploaded, data)
+            save_cover_letter(user_id, uploaded.filename, text, storage_path=path, access_token=access_token, refresh_token=refresh_token)
 
         return RedirectResponse(url="/profile/setup", status_code=303)
     except Exception as exc:
@@ -691,10 +723,38 @@ def delete_cover_letter_route(request: Request, cover_letter_id: str = Form(...)
     try:
         user = app_user_for_request(request)
         access_token, refresh_token = get_request_session_tokens(request)
+        rows = get_cover_letters_for_user(str(user["id"]), access_token=access_token, refresh_token=refresh_token)
         delete_cover_letter_for_user(str(user["id"]), cover_letter_id, access_token=access_token, refresh_token=refresh_token)
+        forget_originals(request, [row.get("storage_path") for row in rows if str(row.get("id")) == cover_letter_id])
         return RedirectResponse(url="/profile/setup", status_code=303)
     except HTTPException:
         return RedirectResponse(url="/login", status_code=303)
+
+
+@app.get("/profile/files/{kind}/{row_id}")
+def download_original(request: Request, kind: str, row_id: str):
+    """Send back one of the user's own original files, found through their own rows (RLS applies twice)."""
+    try:
+        user = app_user_for_request(request)
+    except HTTPException:
+        return RedirectResponse(url="/login", status_code=303)
+    access_token, refresh_token = get_request_session_tokens(request)
+    loaders = {"resume": get_resumes_for_user, "letter": get_cover_letters_for_user}
+    if kind not in loaders:
+        raise HTTPException(status_code=404)
+    rows = loaders[kind](str(user["id"]), access_token=access_token, refresh_token=refresh_token)
+    row = next((row for row in rows if str(row.get("id")) == row_id), None)
+    path = (row or {}).get("storage_path") or ""
+    if not path or path.startswith("/"):  # missing, or an old label from before files were kept
+        raise HTTPException(status_code=404)
+    try:
+        data = download_document(path, access_token=access_token)
+    except Exception as exc:
+        logger.warning("original file download failed: %s: %s", type(exc).__name__, exc)
+        raise HTTPException(status_code=404) from exc
+    filename = row.get("filename") or path.rsplit("/", 1)[-1]
+    media_type = "application/pdf" if filename.lower().endswith(".pdf") else "text/plain; charset=utf-8"
+    return Response(data, media_type=media_type, headers={"Content-Disposition": f"attachment; filename*=UTF-8''{quote(filename)}"})
 
 
 @app.post("/profile/build", response_class=HTMLResponse)

@@ -665,3 +665,11 @@
 @media (prefers-reduced-motion: reduce) { .field-error { animation: none; } }
 .upload { flex-wrap: wrap; }
 .upload .field-error { order: 3; flex-basis: 100%; margin-top: 0; }
+
+/* Upload boxes send the file as soon as it's picked (data-autoupload); the button is only a no-JS fallback. */
+.js [data-autoupload] > .btn { display: none; }
+.dropzone.is-uploading { border-style: solid; border-color: var(--ink); color: var(--ink); pointer-events: none; }
+.dropzone.is-uploading .dropzone-plus { background: var(--ink); color: var(--paper); transform: none; }
+.dropzone.pen-loader::after { flex: none; margin-left: auto; color: var(--pen); }
+.file-link { color: inherit; text-decoration: underline; text-decoration-color: var(--line-strong); text-underline-offset: 3px; }
+.file-link:hover { color: var(--pen); text-decoration-color: currentColor; }

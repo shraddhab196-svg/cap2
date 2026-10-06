@@ -37,7 +37,7 @@ SAMPLE_LETTER = (ROOT / "tests" / "fixtures" / "sample_letter.txt").read_text(en
 
 def fakes(latency: float = 0.0) -> dict[str, Any]:
     """Replacements for every outside call app.py makes, keyed by the name app.py imports."""
-    db: dict[str, Any] = {"users": {}, "resumes": [], "cover_letters": [], "style": {}, "candidate": {}, "jobs": {}, "letters": []}
+    db: dict[str, Any] = {"users": {}, "resumes": [], "cover_letters": [], "style": {}, "candidate": {}, "jobs": {}, "letters": [], "files": {}}
 
     def new_id() -> str:
         return str(uuid.uuid4())
@@ -75,10 +75,15 @@ def fakes(latency: float = 0.0) -> dict[str, Any]:
         db["resumes"].append(row)
         return row
 
-    def save_cover_letter(user_id, filename, content, **_):
-        row = {"id": new_id(), "user_id": user_id, "filename": filename, "content": content}
+    def save_cover_letter(user_id, filename, content, *, storage_path=None, **_):
+        row = {"id": new_id(), "user_id": user_id, "filename": filename, "content": content, "storage_path": storage_path}
         db["cover_letters"].append(row)
         return row
+
+    def upload_document(auth_user_id, kind, filename, data, **_):
+        path = f"{auth_user_id}/{kind}/{new_id()[:12]}-{filename}"
+        db["files"][path] = data
+        return path
 
     def remove(table: str, user_id: str, row_id: str | None = None) -> None:
         db[table] = [row for row in db[table] if not (row["user_id"] == user_id and (row_id is None or row["id"] == row_id))]
@@ -147,6 +152,10 @@ def fakes(latency: float = 0.0) -> dict[str, Any]:
         "delete_all_resumes_for_user": lambda user_id, **_: remove("resumes", user_id),
         "get_cover_letters_for_user": lambda user_id, **_: mine(db["cover_letters"], user_id),
         "save_cover_letter": save_cover_letter,
+        # Original files: an in-memory stand-in for the Supabase Storage bucket.
+        "upload_document": upload_document,
+        "remove_documents": lambda paths, **_: [db["files"].pop(path, None) for path in paths],
+        "download_document": lambda path, **_: db["files"][path],
         "delete_cover_letter_for_user": lambda user_id, cover_letter_id, **_: remove("cover_letters", user_id, cover_letter_id),
         "save_candidate_profile": lambda user_id, profile, **_: db["candidate"].setdefault(user_id, {}).update(profile=profile) or db["candidate"][user_id],
         "get_candidate_profile": lambda user_id, **_: db["candidate"].get(user_id),
