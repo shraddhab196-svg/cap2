@@ -30,7 +30,7 @@ from supabase_auth.helpers import generate_pkce_challenge, generate_pkce_verifie
 
 from src.anchor_generator import generate_anchors
 from src.company_researcher import research_company
-from src.cover_letter_generator import extract_candidate_name, generate_cover_letter, generate_cover_letter_revision
+from src.cover_letter_generator import generate_cover_letter, generate_cover_letter_revision
 from src.database import (
     delete_all_resumes_for_user,
     delete_cover_letter_for_user,
@@ -45,6 +45,7 @@ from src.database import (
     get_resumes_for_user,
     get_style_profile,
     remove_documents,
+    save_user_full_name,
     mark_generated_cover_letter_final,
     save_letter_satisfaction,
     save_candidate_profile,
@@ -53,6 +54,7 @@ from src.database import (
     save_job_application,
     save_resume,
     save_style_profile,
+    update_generated_cover_letter_content,
     update_job_application_anchor,
     upload_document,
 )
@@ -295,7 +297,9 @@ def app_user_for_request(request: Request) -> dict[str, Any]:
 
 def start_session(request: Request, user: Any, email: str, session: Any) -> None:
     request.session.clear()
-    request.session["auth_user"] = {"id": user.id, "email": email}
+    metadata = getattr(user, "user_metadata", None) or {}
+    full_name = str(metadata.get("full_name") or metadata.get("name") or "").strip()
+    request.session["auth_user"] = {"id": user.id, "email": email, "full_name": full_name[:80]}
     request.session["access_token"] = session.access_token
     request.session["refresh_token"] = session.refresh_token
 
@@ -373,6 +377,16 @@ def user_error(exc: Exception) -> str:
         return str(exc)
     logging.getLogger(__name__).error("request failed: %s", type(exc).__name__, exc_info=exc)
     return GENERIC_ERROR
+
+
+def account_name(request: Request) -> str:
+    """The name on the person's login: set on profile setup, or from their Google account."""
+    return str((request.session.get("auth_user") or {}).get("full_name") or "").strip()
+
+
+def letter_name_for(request: Request, user_id: str, access_token: str | None, refresh_token: str | None) -> str | None:
+    """Name signed under every letter: the account name first (the user confirmed it), then the resume."""
+    return account_name(request) or candidate_name_for_user(user_id, access_token, refresh_token)
 
 
 def candidate_name_for_user(user_id: str, access_token: str | None, refresh_token: str | None) -> str | None:
@@ -600,12 +614,18 @@ def logout(request: Request):
 def render_profile_setup(request: Request, user: dict[str, Any], error: str | None = None, notice: str | None = None):
     materials = load_profile_materials(request, str(user["id"]))
     resumes = materials["resumes"]
+    letter_name, source = account_name(request), "account"
+    if not letter_name:
+        letter_name = next((name for name in (extract_candidate_name(str(r.get("extracted_text") or "")) for r in resumes) if name), "")
+        source = "resume" if letter_name else "none"
     return templates.TemplateResponse("profile_setup.html", {
         "request": request,
         "user": user,
         "status": build_profile_status(request, str(user["id"]), materials),
         "resume": resumes[-1] if resumes else None,
         "cover_letters": materials["cover_letters"],
+        "letter_name": letter_name,
+        "letter_name_source": source,
         "error": error,
         "notice": notice,
     })
@@ -651,6 +671,27 @@ def forget_originals(request: Request, paths: list[str | None]) -> None:
         remove_documents([path for path in paths if path], access_token=access_token)
     except Exception as exc:
         logger.warning("original files not removed: %s: %s", type(exc).__name__, exc)
+
+
+NAME_PATTERN = re.compile(r"^[^\W\d_]+(?:[ .'’-]+[^\W\d_]+)*\.?$")
+
+
+@app.post("/profile/name", response_class=HTMLResponse)
+def save_letter_name(request: Request, full_name: str = Form("")):
+    """The name signed under the user's letters, kept on their Supabase login (user metadata)."""
+    try:
+        app_user_for_request(request)
+        name = " ".join(full_name.split())
+        if name and (len(name) > 80 or not NAME_PATTERN.match(name)):
+            raise ValueError("Use letters only for your name, like Jane Doe or Mary-Jane O'Neil.")
+        access_token, _ = get_request_session_tokens(request)
+        save_user_full_name(name, access_token=access_token)
+        request.session["auth_user"] = {**request.session.get("auth_user", {}), "full_name": name}
+        return RedirectResponse(url="/profile/setup", status_code=303)
+    except HTTPException:
+        return RedirectResponse(url="/login", status_code=303)
+    except Exception as exc:
+        return profile_setup_with_error(request, exc)
 
 
 @app.post("/profile/resume", response_class=HTMLResponse)
@@ -1027,8 +1068,7 @@ def select_company_angle(
         ]
         if not previous_letters:
             raise ValueError("No previous cover-letter evidence is available for this user.")
-        resume_rows = get_resumes_for_user(user_id, access_token=access_token, refresh_token=refresh_token)
-        candidate_name = extract_candidate_name(resume_rows[0].get("extracted_text") if resume_rows else None)
+        candidate_name = letter_name_for(request, user_id, access_token, refresh_token)
 
         job_application_id = str(job_application["id"])
         existing_chain = get_generated_cover_letters_for_job(user_id, job_application_id, access_token=access_token, refresh_token=refresh_token)
@@ -1143,7 +1183,7 @@ def revise_cover_letter(request: Request, job_application_id: str = Form(...), f
             previous_letters=previous_letters,
             company_url=str(job_application.get("company_url") or ""),
             feedback_history=[record["feedback"] for record in chain if record.get("feedback")],
-            candidate_name=candidate_name_for_user(user_id, access_token, refresh_token),
+            candidate_name=letter_name_for(request, user_id, access_token, refresh_token),
         )
 
         new_revision_number = revision_number + 1
@@ -1183,6 +1223,37 @@ def accept_cover_letter(request: Request, job_application_id: str = Form(...), c
         for record in chain:
             record["is_final"] = str(record.get("id")) == cover_letter_id
         return render_cover_letter_page(request, user, job_application_id, chain)
+    except Exception as exc:
+        return render_cover_letter_page(request, user, job_application_id, chain, error=user_error(exc))
+
+
+MAX_LETTER_CHARS = 10_000
+
+
+@app.post("/cover-letter/edit", response_class=HTMLResponse)
+def edit_cover_letter(request: Request, job_application_id: str = Form(...), cover_letter_id: str = Form(...), content: str = Form("")):
+    """Save the user's own edits to the letter shown. Not an AI revision, so it doesn't use one up."""
+    try:
+        user = app_user_for_request(request)
+    except HTTPException:
+        return RedirectResponse(url="/login", status_code=303)
+
+    chain: list[dict[str, Any]] = []
+    try:
+        user_id = str(user["id"])
+        access_token, refresh_token = get_request_session_tokens(request)
+        chain = get_generated_cover_letters_for_job(user_id, job_application_id, access_token=access_token, refresh_token=refresh_token)
+        record = next((row for row in chain if str(row.get("id")) == cover_letter_id), None)
+        if record is None:
+            raise ValueError("The selected cover letter does not belong to this job application.")
+        text = content.replace("\r\n", "\n").strip()
+        if not text:
+            raise ValueError("Your letter can't be empty. Undo your changes or add some text.")
+        if len(text) > MAX_LETTER_CHARS:
+            raise ValueError(f"That's a bit long for a cover letter: keep it under {MAX_LETTER_CHARS:,} characters.")
+        if text != str(record.get("content") or "").strip():
+            update_generated_cover_letter_content(user_id, cover_letter_id, text, access_token=access_token, refresh_token=refresh_token)
+        return RedirectResponse(url="/cover-letter", status_code=303)
     except Exception as exc:
         return render_cover_letter_page(request, user, job_application_id, chain, error=user_error(exc))
 

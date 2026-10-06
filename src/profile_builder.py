@@ -29,7 +29,13 @@ def read_limited(file: UploadFile) -> bytes:
     return data
 NAME_HEADER_WORDS = {
     "resume", "résumé", "curriculum", "vitae", "cv", "profile", "summary", "contact", "about", "personal", "details",
-    "information", "experience", "education", "skills", "objective", "professional", "work",
+    "information", "experience", "education", "skills", "objective", "professional", "work", "lebenslauf",
+    # Job-title words: "Software Engineer" or "Senior Data Scientist" above the name must not be signed as a name.
+    "senior", "junior", "lead", "principal", "staff", "head", "chief", "engineer", "developer", "scientist",
+    "analyst", "manager", "designer", "consultant", "architect", "researcher", "student", "intern", "data",
+    "software", "machine", "learning", "ml", "ai", "ux", "ui", "product", "full-stack", "fullstack", "frontend",
+    "backend", "devops", "specialist", "associate", "director", "officer", "coordinator", "assistant", "administrator",
+    "technician", "programmer", "graduate", "freelance", "marketing", "sales", "finance", "operations",
 }
 NAME_SEPARATORS = re.compile(r"\s*[|•·,;–—]\s*|\s+-\s+")
 NAME_TOKEN = re.compile(r"^[^\W\d_]+(?:[.'’-][^\W\d_]*)*\.?$")

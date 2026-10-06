@@ -333,6 +333,21 @@ def save_letter_satisfaction(user_id: str, cover_letter_id: str, satisfaction: s
     return result.data[0]
 
 
+def update_generated_cover_letter_content(user_id: str, cover_letter_id: str, content: str, *, access_token: str | None = None, refresh_token: str | None = None) -> dict[str, Any]:
+    """Replace one letter's text with the user's own edits (only their own row, enforced by RLS too)."""
+    supabase = get_client(access_token=access_token, refresh_token=refresh_token)
+    result = (
+        supabase.table("generated_cover_letters")
+        .update({"content": content})
+        .eq("id", cover_letter_id)
+        .eq("user_id", user_id)
+        .execute()
+    )
+    if not result.data:
+        raise RuntimeError("Failed to save the edited cover letter.")
+    return result.data[0]
+
+
 def mark_generated_cover_letter_final(user_id: str, job_application_id: str, cover_letter_id: str, *, access_token: str | None = None, refresh_token: str | None = None) -> dict[str, Any]:
     """Mark exactly one letter in a job's revision chain as final."""
     supabase = get_client(access_token=access_token, refresh_token=refresh_token)
@@ -405,3 +420,17 @@ def remove_documents(paths: list[str], *, access_token: str) -> None:
 
 def download_document(path: str, *, access_token: str) -> bytes:
     return _documents(access_token).download(path)
+
+
+def save_user_full_name(full_name: str, *, access_token: str) -> None:
+    """Store the user's own name on their Supabase login (auth user metadata); only they can change it."""
+    import httpx
+
+    url, key = load_supabase_env()
+    response = httpx.put(
+        f"{url.rstrip('/')}/auth/v1/user",
+        headers={"apikey": key, "Authorization": f"Bearer {access_token}"},
+        json={"data": {"full_name": full_name}},
+        timeout=15,
+    )
+    response.raise_for_status()

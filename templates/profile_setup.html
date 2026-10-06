@@ -24,6 +24,23 @@
 
         <div class="setup-grid">
             <div class="card card-pad rise" style="--i:3">
+                <section class="setup-section" aria-labelledby="name-title">
+                    <div class="section-title">
+                        <h2 id="name-title">Name on your letters</h2>
+                        <span class="count-pill">{% if letter_name_source == 'account' %}Saved{% elif letter_name_source == 'resume' %}From resume{% else %}Missing{% endif %}</span>
+                    </div>
+                    <form class="name-form" method="post" action="/profile/name" data-loading>
+                        <div class="field">
+                            <label class="field-label" for="full_name">Signed at the end of every letter</label>
+                            <div class="name-row">
+                                <input class="input" id="full_name" name="full_name" type="text" value="{{ letter_name }}" placeholder="Jane Doe" maxlength="80" autocomplete="name" data-msg-format="Use letters only for your name, like Jane Doe." />
+                                <button type="submit" class="btn btn-ghost btn-sm btn-plain">Save</button>
+                            </div>
+                            <p class="note name-hint">{% if letter_name_source == 'account' %}Every letter is signed with this name.{% elif letter_name_source == 'resume' %}We read this from your resume. Fix it here if it's wrong, then save.{% else %}We couldn't find your name on your resume. Add it so your letters are signed correctly.{% endif %}</p>
+                        </div>
+                    </form>
+                </section>
+
                 <section class="setup-section" aria-labelledby="resume-title">
                     <div class="section-title">
                         <h2 id="resume-title">Resume</h2>
