@@ -80,6 +80,9 @@ Create a Supabase project, then run these in its SQL editor, in order:
 4. `supabase/migration_add_job_applications.sql`
 5. `supabase/migration_chunk10_revision_loop.sql`
 6. `supabase/migration_add_job_anchors.sql`
+7. `supabase/migration_add_satisfaction_feedback.sql`
+8. `supabase/migration_add_document_storage.sql` (private bucket for the original files)
+9. `supabase/migration_add_storage_budget.sql` (lets the app keep that bucket within its budget)
 
 Under **Authentication → URL Configuration → Redirect URLs**, add your app's address (for example `http://localhost:8000/**`) so the confirmation email links back to it.
 
@@ -97,6 +100,7 @@ Copy `.env.example` to `.env` and fill it in. `.env` is git-ignored; never commi
 | `SESSION_SECRET` | in production | Long random string that signs the login cookie. Without it, logins reset on every restart |
 | `APP_URL` | in production | Public https address. Makes the login cookie https-only and turns on HSTS |
 | `DAILY_AI_LIMIT` | no | Job lookups, drafts and revisions per user per 24 hours (default 40, `0` turns it off) |
+| `STORAGE_BUDGET_MB` | no | Total size of stored original files (default 800, under Supabase's free 1 GB). Past it, uploads still work but originals aren't kept |
 | `GROQ_MODEL` | no | Groq model name (default `qwen/qwen3.8-27b`) |
 | `LLM_MODEL` | no | Any LiteLLM model name; overrides `GROQ_MODEL` |
 | `LLM_FALLBACK_MODELS` | no | Comma-separated models tried in order when the primary is busy or down |

@@ -43,6 +43,7 @@ from src.database import (
     count_recent_ai_actions,
     get_cover_letters_for_user,
     get_resumes_for_user,
+    documents_bucket_bytes,
     get_style_profile,
     remove_documents,
     save_user_full_name,
@@ -654,11 +655,22 @@ def read_upload(upload: UploadFile, label: str) -> tuple[bytes, str]:
     return data, text
 
 
+# Keeps the "documents" bucket inside the plan's storage (Supabase free plan: 1 GB for the whole project).
+# Past the budget, originals are no longer kept; uploads still work and the extracted text is saved.
+STORAGE_BUDGET_BYTES = int(float(os.getenv("STORAGE_BUDGET_MB", "800")) * 1024 * 1024)
+
+
 def store_original(request: Request, kind: str, upload: UploadFile, data: bytes) -> str | None:
     """Keep the original file in Supabase Storage. Optional: on failure the extracted text is still saved."""
     auth_id = (request.session.get("auth_user") or {}).get("id")
     access_token, _ = get_request_session_tokens(request)
     try:
+        # Fails closed: if the bucket's size can't be read, the original isn't kept.
+        used = documents_bucket_bytes(access_token=access_token)
+        if used + len(data) > STORAGE_BUDGET_BYTES:
+            logger.warning("storage budget reached: %.1f of %.0f MB used; original not kept kind=%s",
+                           used / 1048576, STORAGE_BUDGET_BYTES / 1048576, kind)
+            return None
         return upload_document(str(auth_id), kind, upload.filename, data, access_token=access_token)
     except Exception as exc:
         logger.warning("original file not stored kind=%s: %s: %s", kind, type(exc).__name__, exc)

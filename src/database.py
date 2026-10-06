@@ -434,3 +434,9 @@ def save_user_full_name(full_name: str, *, access_token: str) -> None:
         timeout=15,
     )
     response.raise_for_status()
+
+
+def documents_bucket_bytes(*, access_token: str) -> int:
+    """Total size of every file in the "documents" bucket (SQL function in migration_add_storage_budget.sql)."""
+    result = get_client(access_token=access_token).rpc("documents_bucket_bytes").execute()
+    return int(result.data or 0)
