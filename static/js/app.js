@@ -282,12 +282,12 @@
         });
     });
 
-    // Upload boxes only take PDF or TXT, also when a file is dropped (the accept attribute doesn't stop drops).
+    // Upload boxes only take PDF, Word (.docx) or TXT, also when a file is dropped (the accept attribute doesn't stop drops).
     $$('input[type="file"][accept]').forEach((input) => {
         input.addEventListener("change", () => {
             const allowed = input.accept.split(",").map((ext) => ext.trim().toLowerCase());
             const ok = Array.from(input.files || []).every((file) => allowed.some((ext) => file.name.toLowerCase().endsWith(ext)));
-            input.setCustomValidity(ok ? "" : "That file type won't work. Upload a PDF or a .txt file.");
+            input.setCustomValidity(ok ? "" : "That file type won't work. Upload a PDF, a Word (.docx) or a .txt file.");
             if (!ok) input.reportValidity();
         });
     });

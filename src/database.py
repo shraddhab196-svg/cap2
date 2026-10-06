@@ -384,7 +384,8 @@ def count_recent_ai_actions(user_id: str, since: datetime, *, access_token: str 
 # --- Original files in Supabase Storage (supabase/migration_add_document_storage.sql) ---
 # Private bucket; each user's files live under "<auth user id>/..." and storage policies limit access to that folder.
 DOCUMENTS_BUCKET = "documents"
-CONTENT_TYPES = {".pdf": "application/pdf", ".txt": "text/plain"}
+DOCX_MIME = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+CONTENT_TYPES = {".pdf": "application/pdf", ".txt": "text/plain", ".docx": DOCX_MIME}
 
 
 def _documents(access_token: str):

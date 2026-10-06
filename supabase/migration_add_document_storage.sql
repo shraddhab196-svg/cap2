@@ -3,7 +3,7 @@
 -- The extracted text stays in resumes.extracted_text / cover_letters.content, so the app works without the files.
 
 INSERT INTO storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
-VALUES ('documents', 'documents', false, 5242880, ARRAY['application/pdf', 'text/plain'])
+VALUES ('documents', 'documents', false, 5242880, ARRAY['application/pdf', 'text/plain', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'])
 ON CONFLICT (id) DO UPDATE
     SET public = false,
         file_size_limit = EXCLUDED.file_size_limit,
