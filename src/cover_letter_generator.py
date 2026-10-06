@@ -26,6 +26,11 @@ try:
 except ImportError:  # running as a script from inside src/
     from resume_facts import format_resume_facts_section
 
+try:
+    from src.letter_checks import build_retry_note, fact_issues, style_issues
+except ImportError:  # running as a script from inside src/
+    from letter_checks import build_retry_note, fact_issues, style_issues
+
 logger = logging.getLogger(__name__)
 
 
@@ -237,9 +242,9 @@ def build_cover_letter_plan_prompt(
         )
 
     evidence_sections: list[str] = []
-    for name, text in previous_letters[:2]:
+    for index, (_name, text) in enumerate(previous_letters[:2], start=1):
         snippet = trim_evidence_snippet(text, limit=350)
-        evidence_sections.append(f"--- {name} ---\n{snippet}\n")
+        evidence_sections.append(f"--- Letter {index} ---\n{snippet}\n")  # position, not filename (filenames can name companies)
 
     style_summary = json.dumps(style_profile, ensure_ascii=False, separators=(",", ":"))
     selected_angle_value = selected_anchors[0].get("title") if selected_anchors else ""
@@ -452,9 +457,9 @@ def build_cover_letter_prompt(
         )
 
     evidence_sections: list[str] = []
-    for name, text in previous_letters[:3]:
+    for index, (_name, text) in enumerate(previous_letters[:3], start=1):
         snippet = trim_evidence_snippet(text, limit=550)  # reduced from 700 to stay under Groq's 7000 input-token limit
-        evidence_sections.append(f"--- {name} ---\n{snippet}\n")
+        evidence_sections.append(f"--- Letter {index} ---\n{snippet}\n")  # position, not filename (filenames can name companies)
 
     style_summary = json.dumps(style_profile, ensure_ascii=False, separators=(",", ":"))
     plan_summary = json.dumps(plan, ensure_ascii=False, separators=(",", ":"))
@@ -795,9 +800,9 @@ def build_cover_letter_revision_prompt(
         )
 
     evidence_sections: list[str] = []
-    for name, text in previous_letters[:2]:
+    for index, (_name, text) in enumerate(previous_letters[:2], start=1):
         snippet = trim_evidence_snippet(text, limit=350)
-        evidence_sections.append(f"--- {name} ---\n{snippet}\n")
+        evidence_sections.append(f"--- Letter {index} ---\n{snippet}\n")  # position, not filename (filenames can name companies)
 
     style_summary = json.dumps(style_profile, ensure_ascii=False, separators=(",", ":"))
 
@@ -1002,6 +1007,7 @@ def generate_cover_letter(
 
     candidate_name: str | None = None,
     resume_facts: str = "",
+    source_texts: list[str] | None = None,
 ) -> str:
     """Generate the final cover letter through Groq."""
     load_environment()
@@ -1014,6 +1020,7 @@ def generate_cover_letter(
     prompt = base_prompt
     
     max_attempts = 3
+    soft_retry_used = False
 
     for attempt in range(1, max_attempts + 1):
         try:
@@ -1046,6 +1053,19 @@ def generate_cover_letter(
         # writing framework: the complete letter must stay within the word limit.
         framework_problem = writing_framework.word_limit_problem(letter)
         if not framework_problem:
+            if source_texts:
+                # Soft checks: at most one retry with a correction note; never an error for the user.
+                try:
+                    issues = fact_issues(letter, source_texts) + style_issues(letter)
+                except Exception:
+                    issues = []
+                if writing_framework.count_words(letter) < 250:
+                    logger.info("letter is under 250 words (%d)", writing_framework.count_words(letter))
+                if issues and not soft_retry_used and attempt < max_attempts:
+                    soft_retry_used = True
+                    logger.info("letter soft checks found %d issue(s); retrying once", len(issues))
+                    prompt = f"{base_prompt}\n\n{build_retry_note(issues)}"
+                    continue
             return letter
         logger.warning("Generated letter rejected by the writing framework: %s", framework_problem)
         prompt = f"{base_prompt}\n\nIMPORTANT: {framework_problem}"

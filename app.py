@@ -408,6 +408,23 @@ def candidate_name_for_user(user_id: str, access_token: str | None, refresh_toke
     return candidate_name_from_rows(get_resumes_for_user(user_id, access_token=access_token, refresh_token=refresh_token))
 
 
+def build_source_texts(
+    resume_rows: list[dict[str, Any]],
+    previous_letters: list[tuple[str, str]],
+    job_description: str,
+    selected_anchor: dict[str, Any],
+    candidate_name: str | None,
+    company_url: str,
+) -> list[str]:
+    """Everything a letter may draw facts from (full texts, not prompt snippets); used only for plain-code fact checks."""
+    texts = [str(row.get("extracted_text") or "") for row in resume_rows]
+    texts += [text for _, text in previous_letters]
+    texts.append(job_description)
+    texts += [value for value in selected_anchor.values() if isinstance(value, str)]
+    texts += [candidate_name or "", company_url]
+    return [text for text in texts if text]
+
+
 def resume_facts_for(
     resume_rows: list[dict[str, Any]],
     job_description: str,
@@ -1196,6 +1213,10 @@ def select_company_angle(
         )
 
         selected_anchors = [anchors[selected_index]]
+        try:
+            source_texts = build_source_texts(resume_rows, previous_letters, jd, anchors[selected_index], candidate_name, company_url_value)
+        except Exception:
+            source_texts = None  # the letter is still generated, just without the soft fact/style checks
         letter = generate_cover_letter(
             job_description=jd,
             selected_anchors=selected_anchors,
@@ -1204,6 +1225,7 @@ def select_company_angle(
             company_url=company_url_value,
             candidate_name=candidate_name,
             resume_facts=resume_facts_for(resume_rows, jd, anchors[selected_index], previous_letters),
+            source_texts=source_texts,
         )
 
         saved_letter = save_generated_cover_letter(
