@@ -51,22 +51,38 @@
         clearTimeout(slowTimer);
         if (hint) hint.textContent = defaultHint;
         document.body.classList.remove("is-working");
+        $$(".dropzone.is-uploading").forEach((zone) => zone.classList.remove("is-uploading", "pen-loader"));
         $$('[aria-busy="true"]').forEach((button) => {
             button.removeAttribute("aria-busy");
             button.disabled = false;
         });
     });
 
-    // --- File drop zones: show the chosen name, highlight on drag.
+    // --- File drop zones: show the chosen name, highlight on drag. data-autoupload forms send the file
+    // as soon as it's picked or dropped (their Upload/Add button is only a no-JS fallback).
     $$(".dropzone").forEach((zone) => {
         const input = zone.querySelector('input[type="file"]');
         const text = zone.querySelector("[data-file-text]");
+        const defaultHTML = text.innerHTML;
+        const form = input.form;
         const sync = () => {
-            const file = input.files && input.files[0];
-            text.textContent = file ? file.name : text.dataset.default;
-            zone.classList.toggle("has-file", Boolean(file));
+            const files = Array.from(input.files || []);
+            if (files.length) text.textContent = files.length > 1 ? `${files.length} files` : files[0].name;
+            else text.innerHTML = defaultHTML;
+            zone.classList.toggle("has-file", files.length > 0);
         };
-        input.addEventListener("change", sync);
+        input.addEventListener("change", () => {
+            sync();
+            if (!form || !form.hasAttribute("data-autoupload") || !input.files.length) return;
+            // After the file-type check below has run for this change.
+            setTimeout(() => {
+                if (!input.checkValidity()) return;
+                const files = Array.from(input.files);
+                text.textContent = files.length > 1 ? `Uploading ${files.length} files…` : `Uploading ${files[0].name}…`;
+                zone.classList.add("is-uploading", "pen-loader");
+                form.requestSubmit();
+            });
+        });
         ["dragenter", "dragover"].forEach((type) => zone.addEventListener(type, () => zone.classList.add("is-over")));
         ["dragleave", "drop"].forEach((type) => zone.addEventListener(type, () => zone.classList.remove("is-over")));
         sync();
@@ -237,8 +253,7 @@
     $$('input[type="file"][accept]').forEach((input) => {
         input.addEventListener("change", () => {
             const allowed = input.accept.split(",").map((ext) => ext.trim().toLowerCase());
-            const file = input.files && input.files[0];
-            const ok = !file || allowed.some((ext) => file.name.toLowerCase().endsWith(ext));
+            const ok = Array.from(input.files || []).every((file) => allowed.some((ext) => file.name.toLowerCase().endsWith(ext)));
             input.setCustomValidity(ok ? "" : "That file type won't work. Upload a PDF or a .txt file.");
             if (!ok) input.reportValidity();
         });

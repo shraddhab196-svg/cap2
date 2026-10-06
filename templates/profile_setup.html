@@ -15,6 +15,9 @@
             <p class="lede rise" style="--i:2">Prepare your profile once for future applications. Your resume tells us what you've done; your past letters tell us how you sound.</p>
         </div>
 
+        {% if notice %}
+        <div class="notice" role="status" style="margin-bottom: 24px">{{ notice }}</div>
+        {% endif %}
         {% if error %}
         <div class="alert" role="alert" style="margin-bottom: 24px">{{ error }}</div>
         {% endif %}
@@ -30,7 +33,7 @@
                     <ul class="files">
                         <li class="file">
                             {{ doc_icon() }}
-                            <span class="file-name" title="{{ resume.filename }}">{{ resume.filename }}</span>
+                            {% if resume.storage_path and not resume.storage_path.startswith("/") %}<a class="file-name file-link" href="/profile/files/resume/{{ resume.id }}" title="Download {{ resume.filename }}">{{ resume.filename }}</a>{% else %}<span class="file-name" title="{{ resume.filename }}">{{ resume.filename }}</span>{% endif %}
                             <span class="file-ok">{{ ok_icon() }}Uploaded</span>
                             <form method="post" action="/profile/resume/delete">
                                 <input type="hidden" name="resume_id" value="{{ resume.id }}" />
@@ -39,11 +42,11 @@
                         </li>
                     </ul>
                     {% endif %}
-                    <form class="upload" method="post" action="/profile/resume" enctype="multipart/form-data" data-loading>
+                    <form class="upload" method="post" action="/profile/resume" enctype="multipart/form-data" data-loading data-autoupload>
                         <label class="dropzone">
                             <input type="file" name="resume" accept=".pdf,.txt" required data-msg-missing="Choose your resume first (PDF or .txt)." />
                             <span class="dropzone-plus" aria-hidden="true">+</span>
-                            <span class="dropzone-text" data-file-text data-default="{% if resume %}Choose a new resume file{% else %}Choose resume file{% endif %}">{% if resume %}Choose a new resume file{% else %}Choose resume file{% endif %}</span>
+                            <span class="dropzone-text" data-file-text data-default="{% if resume %}Replace your resume: click or drop a file{% else %}Add your resume: click or drop a file{% endif %}">{% if resume %}Replace your resume: click or drop a file{% else %}Add your resume: click or drop a file{% endif %}<small>PDF or TXT, up to 5 MB · uploads right away</small></span>
                         </label>
                         <button type="submit" class="btn btn-ghost btn-sm btn-plain">{% if resume %}Replace{% else %}Upload{% endif %}</button>
                     </form>
@@ -59,7 +62,7 @@
                         {% for letter in cover_letters %}
                         <li class="file" style="--i:{{ loop.index0 }}">
                             {{ doc_icon() }}
-                            <span class="file-name" title="{{ letter.filename }}">{{ letter.filename }}</span>
+                            {% if letter.storage_path and not letter.storage_path.startswith("/") %}<a class="file-name file-link" href="/profile/files/letter/{{ letter.id }}" title="Download {{ letter.filename }}">{{ letter.filename }}</a>{% else %}<span class="file-name" title="{{ letter.filename }}">{{ letter.filename }}</span>{% endif %}
                             <span class="file-ok">{{ ok_icon() }}Ready</span>
                             <form method="post" action="/profile/cover-letters/delete">
                                 <input type="hidden" name="cover_letter_id" value="{{ letter.id }}" />
@@ -70,11 +73,11 @@
                     </ul>
                     {% endif %}
                     {% if status.cover_letter_count < MAX_COVER_LETTERS %}
-                    <form class="upload" method="post" action="/profile/cover-letters" enctype="multipart/form-data" data-loading>
+                    <form class="upload" method="post" action="/profile/cover-letters" enctype="multipart/form-data" data-loading data-autoupload>
                         <label class="dropzone">
-                            <input type="file" name="files" accept=".pdf,.txt" required data-msg-missing="Choose a cover letter you've written before (PDF or .txt)." />
+                            <input type="file" name="files" accept=".pdf,.txt" multiple required data-msg-missing="Choose a cover letter you've written before (PDF or .txt)." />
                             <span class="dropzone-plus" aria-hidden="true">+</span>
-                            <span class="dropzone-text" data-file-text data-default="Choose cover letter file">Choose cover letter file</span>
+                            <span class="dropzone-text" data-file-text data-default="Add cover letters: click or drop files">Add cover letters: click or drop files<small>Pick several at once · PDF or TXT · uploads right away</small></span>
                         </label>
                         <button type="submit" class="btn btn-ghost btn-sm btn-plain">Add</button>
                     </form>

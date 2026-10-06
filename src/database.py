@@ -101,7 +101,7 @@ def create_test_user() -> dict[str, Any]:
     return get_or_create_app_user(name="test_user")
 
 
-def save_cover_letter(user_id: str, filename: str, content: str, *, access_token: str | None = None, refresh_token: str | None = None) -> dict[str, Any]:
+def save_cover_letter(user_id: str, filename: str, content: str, *, storage_path: str | None = None, access_token: str | None = None, refresh_token: str | None = None) -> dict[str, Any]:
     """Persist one extracted cover letter text into the cover_letters table."""
     supabase = get_client(access_token=access_token, refresh_token=refresh_token)
     payload = {
@@ -109,6 +109,8 @@ def save_cover_letter(user_id: str, filename: str, content: str, *, access_token
         "filename": filename,
         "content": content,
     }
+    if storage_path:  # only sent when set, so this works before migration_add_document_storage.sql is run
+        payload["storage_path"] = storage_path
 
     result = supabase.table("cover_letters").insert(payload).execute()
     if not result.data:
@@ -362,3 +364,44 @@ def count_recent_ai_actions(user_id: str, since: datetime, *, access_token: str 
         result = supabase.table(table).select("id", count="exact", head=True).eq("user_id", user_id).gte("created_at", since.isoformat()).execute()
         total += result.count or 0
     return total
+
+
+# --- Original files in Supabase Storage (supabase/migration_add_document_storage.sql) ---
+# Private bucket; each user's files live under "<auth user id>/..." and storage policies limit access to that folder.
+DOCUMENTS_BUCKET = "documents"
+CONTENT_TYPES = {".pdf": "application/pdf", ".txt": "text/plain"}
+
+
+def _documents(access_token: str):
+    # A fresh client per call: uploads are rare, and storage clients must not be shared across threads either.
+    from storage3 import SyncStorageClient
+
+    url, key = load_supabase_env()
+    storage = SyncStorageClient(f"{url.rstrip('/')}/storage/v1", {"apikey": key, "Authorization": f"Bearer {access_token}"})
+    return storage.from_(DOCUMENTS_BUCKET)
+
+
+def safe_filename(filename: str) -> str:
+    name = Path(filename or "file").name
+    cleaned = "".join(ch if (ch.isascii() and ch.isalnum()) or ch in "._-" else "_" for ch in name).strip("._") or "file"
+    return cleaned[-120:]
+
+
+def upload_document(auth_user_id: str, kind: str, filename: str, data: bytes, *, access_token: str) -> str:
+    """Store one original file and return its storage path ("<auth id>/<kind>/<random>-<name>")."""
+    import uuid
+
+    path = f"{auth_user_id}/{kind}/{uuid.uuid4().hex[:12]}-{safe_filename(filename)}"
+    content_type = CONTENT_TYPES.get(Path(filename).suffix.lower(), "application/octet-stream")
+    _documents(access_token).upload(path, data, {"content-type": content_type, "upsert": "false"})
+    return path
+
+
+def remove_documents(paths: list[str], *, access_token: str) -> None:
+    paths = [path for path in paths if path and not path.startswith("/")]  # "/resumes/x.pdf" was a label, never a file
+    if paths:
+        _documents(access_token).remove(paths)
+
+
+def download_document(path: str, *, access_token: str) -> bytes:
+    return _documents(access_token).download(path)
