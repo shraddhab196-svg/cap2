@@ -163,6 +163,7 @@ def fakes(latency: float = 0.0) -> dict[str, Any]:
         "upload_document": upload_document,
         "remove_documents": lambda paths, **_: [db["files"].pop(path, None) for path in paths],
         "download_document": lambda path, **_: db["files"][path],
+        "documents_bucket_bytes": lambda **_: sum(len(data) for data in db["files"].values()),
         "delete_cover_letter_for_user": lambda user_id, cover_letter_id, **_: remove("cover_letters", user_id, cover_letter_id),
         "save_candidate_profile": lambda user_id, profile, **_: db["candidate"].setdefault(user_id, {}).update(profile=profile) or db["candidate"][user_id],
         "get_candidate_profile": lambda user_id, **_: db["candidate"].get(user_id),

@@ -22,6 +22,7 @@ class DocumentStorageTests(unittest.TestCase):
         patch_("get_candidate_profile", return_value=None)
         patch_("get_style_profile", return_value=None)
         patch_("get_resumes_for_user", return_value=[])  # the error page re-renders profile setup
+        self.used = patch_("documents_bucket_bytes", return_value=0)
         self.upload = patch_("upload_document", side_effect=lambda auth_id, kind, name, data, **_: f"{auth_id}/{kind}/abc-{name}")
         self.remove = patch_("remove_documents")
         self.save_resume = patch_("save_resume")
@@ -61,6 +62,23 @@ class DocumentStorageTests(unittest.TestCase):
         self.assertEqual(response.status_code, 303)
         self.assertIsNone(self.save_letter.call_args.kwargs["storage_path"])
         self.assertIn("original file not stored", "\n".join(logs.output))
+
+    def test_originals_stop_being_kept_at_the_storage_budget_but_uploads_still_work(self):
+        self.used.return_value = app.STORAGE_BUDGET_BYTES - 5  # 5 bytes left, the file is 9
+        with patch.object(app, "get_cover_letters_for_user", return_value=[]), self.assertLogs("app", "WARNING") as logs:
+            response = self.client.post("/profile/cover-letters", files={"files": ("l.txt", b"Dear team", "text/plain")})
+        self.assertEqual(response.status_code, 303)
+        self.upload.assert_not_called()
+        self.assertIsNone(self.save_letter.call_args.kwargs["storage_path"])
+        self.assertEqual(self.save_letter.call_args.args[2], "Dear team")  # the text is still saved
+        self.assertIn("storage budget reached", "\n".join(logs.output))
+
+    def test_unknown_bucket_size_fails_closed(self):
+        self.used.side_effect = RuntimeError("function documents_bucket_bytes does not exist")
+        with patch.object(app, "get_cover_letters_for_user", return_value=[]), self.assertLogs("app", "WARNING"):
+            response = self.client.post("/profile/cover-letters", files={"files": ("l.txt", b"Dear team", "text/plain")})
+        self.assertEqual(response.status_code, 303)
+        self.upload.assert_not_called()
 
     def test_deleting_a_letter_removes_its_file(self):
         rows = [{"id": "c1", "storage_path": "auth-1/letters/a-l.txt"}, {"id": "c2", "storage_path": "auth-1/letters/b-m.txt"}]
