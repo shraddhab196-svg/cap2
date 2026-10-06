@@ -59,6 +59,64 @@ def extract_candidate_name(resume_text: str) -> str | None:
     return None
 
 
+SUPPORTED_EXTENSIONS = (".pdf", ".docx", ".txt")
+WORD_NS = "{http://schemas.openxmlformats.org/wordprocessingml/2006/main}"
+DOCX_UNREADABLE = "That Word file couldn't be opened. Save it again as .docx (or PDF) and upload it once more."
+MAX_DOCX_XML_BYTES = 20 * 1024 * 1024  # unpacked size per part; stops zip bombs
+
+
+def extract_docx_text(data: bytes) -> str:
+    """Plain text of a .docx (page headers first, then the body), using only the standard library.
+
+    Headers come first because resumes often put the name there. Paragraphs in tables and text boxes are read
+    once each; tabs and line breaks are kept.
+    """
+    import io
+    import zipfile
+    from xml.etree import ElementTree
+
+    try:
+        archive = zipfile.ZipFile(io.BytesIO(data))
+        names = archive.namelist()
+    except zipfile.BadZipFile as exc:
+        raise ValueError(DOCX_UNREADABLE) from exc
+    if "word/document.xml" not in names:
+        raise ValueError(DOCX_UNREADABLE)
+    parts = sorted(name for name in names if re.fullmatch(r"word/header\d*\.xml", name)) + ["word/document.xml"]
+
+    def paragraph_text(paragraph: ElementTree.Element) -> str:
+        pieces: list[str] = []
+
+        def walk(element: ElementTree.Element) -> None:
+            for child in element:
+                if child.tag == WORD_NS + "p":
+                    continue  # a paragraph nested in a text box is read on its own
+                if child.tag == WORD_NS + "t":
+                    pieces.append(child.text or "")
+                elif child.tag == WORD_NS + "tab":
+                    pieces.append("\t")
+                elif child.tag in (WORD_NS + "br", WORD_NS + "cr"):
+                    pieces.append("\n")
+                walk(child)
+
+        walk(paragraph)
+        return "".join(pieces)
+
+    lines: list[str] = []
+    for name in parts:
+        if archive.getinfo(name).file_size > MAX_DOCX_XML_BYTES:
+            raise ValueError(DOCX_UNREADABLE)
+        xml = archive.read(name)
+        if b"<!DOCTYPE" in xml or b"<!ENTITY" in xml:  # Word never writes these; refuse entity tricks
+            raise ValueError(DOCX_UNREADABLE)
+        try:
+            root = ElementTree.fromstring(xml)
+        except ElementTree.ParseError as exc:
+            raise ValueError(DOCX_UNREADABLE) from exc
+        lines.extend(paragraph_text(paragraph) for paragraph in root.iter(WORD_NS + "p"))
+    return "\n".join(lines).strip()
+
+
 def read_uploaded_text(file: UploadFile) -> str:
     """Read uploaded text from a resume or cover-letter file."""
     if file is None:
@@ -78,6 +136,9 @@ def read_uploaded_text(file: UploadFile) -> str:
             return extract_pdf_text(temp_path)
         finally:
             temp_path.unlink(missing_ok=True)
+
+    if filename.endswith(".docx"):
+        return extract_docx_text(read_limited(file))
 
     content = read_limited(file)
     return content.decode("utf-8", errors="replace")

@@ -44,7 +44,7 @@
                 <section class="setup-section" aria-labelledby="resume-title">
                     <div class="section-title">
                         <h2 id="resume-title">Resume</h2>
-                        <span class="count-pill">PDF or TXT</span>
+                        <span class="count-pill">PDF, DOCX or TXT</span>
                     </div>
                     {% if resume %}
                     <ul class="files">
@@ -61,9 +61,9 @@
                     {% endif %}
                     <form class="upload" method="post" action="/profile/resume" enctype="multipart/form-data" data-loading data-autoupload>
                         <label class="dropzone">
-                            <input type="file" name="resume" accept=".pdf,.txt" required data-msg-missing="Choose your resume first (PDF or .txt)." />
+                            <input type="file" name="resume" accept=".pdf,.docx,.txt" required data-msg-missing="Choose your resume first (PDF, Word or .txt)." />
                             <span class="dropzone-plus" aria-hidden="true">+</span>
-                            <span class="dropzone-text" data-file-text data-default="{% if resume %}Replace your resume: click or drop a file{% else %}Add your resume: click or drop a file{% endif %}">{% if resume %}Replace your resume: click or drop a file{% else %}Add your resume: click or drop a file{% endif %}<small>PDF or TXT, up to 5 MB · uploads right away</small></span>
+                            <span class="dropzone-text" data-file-text data-default="{% if resume %}Replace your resume: click or drop a file{% else %}Add your resume: click or drop a file{% endif %}">{% if resume %}Replace your resume: click or drop a file{% else %}Add your resume: click or drop a file{% endif %}<small>PDF, Word or TXT, up to 5 MB · uploads right away</small></span>
                         </label>
                         <button type="submit" class="btn btn-ghost btn-sm btn-plain">{% if resume %}Replace{% else %}Upload{% endif %}</button>
                     </form>
@@ -92,9 +92,9 @@
                     {% if status.cover_letter_count < MAX_COVER_LETTERS %}
                     <form class="upload" method="post" action="/profile/cover-letters" enctype="multipart/form-data" data-loading data-autoupload>
                         <label class="dropzone">
-                            <input type="file" name="files" accept=".pdf,.txt" multiple required data-msg-missing="Choose a cover letter you've written before (PDF or .txt)." />
+                            <input type="file" name="files" accept=".pdf,.docx,.txt" multiple required data-msg-missing="Choose a cover letter you've written before (PDF, Word or .txt)." />
                             <span class="dropzone-plus" aria-hidden="true">+</span>
-                            <span class="dropzone-text" data-file-text data-default="Add cover letters: click or drop files">Add cover letters: click or drop files<small>Pick several at once · PDF or TXT · uploads right away</small></span>
+                            <span class="dropzone-text" data-file-text data-default="Add cover letters: click or drop files">Add cover letters: click or drop files<small>Pick several at once · PDF, Word or TXT · uploads right away</small></span>
                         </label>
                         <button type="submit" class="btn btn-ghost btn-sm btn-plain">Add</button>
                     </form>

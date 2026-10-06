@@ -44,6 +44,7 @@ from src.database import (
     get_cover_letters_for_user,
     get_resumes_for_user,
     documents_bucket_bytes,
+    DOCX_MIME,
     get_style_profile,
     remove_documents,
     save_user_full_name,
@@ -68,6 +69,7 @@ from src.profile_builder import (
     MIN_COVER_LETTERS,
     build_profile_bundle,
     extract_candidate_name,
+    SUPPORTED_EXTENSIONS,
     read_limited,
     read_uploaded_text,
     validate_cover_letters,
@@ -645,8 +647,8 @@ def profile_setup_page(request: Request, file: str = ""):
 
 def read_upload(upload: UploadFile, label: str) -> tuple[bytes, str]:
     """Return the file's bytes (for storage) and its extracted text; both checks run before anything is saved."""
-    if not (upload.filename or "").lower().endswith((".pdf", ".txt")):
-        raise ValueError(f"{upload.filename} isn't a PDF or .txt file. Please upload your {label} as PDF or TXT.")
+    if not (upload.filename or "").lower().endswith(SUPPORTED_EXTENSIONS):
+        raise ValueError(f"{upload.filename} can't be read. Please upload your {label} as PDF, Word (.docx) or .txt.")
     data = read_limited(upload)
     upload.file.seek(0)
     text = read_uploaded_text(upload)
@@ -816,7 +818,7 @@ def download_original(request: Request, kind: str, row_id: str):
         logger.warning("original file download failed: %s: %s", type(exc).__name__, exc)
         return unavailable
     filename = row.get("filename") or path.rsplit("/", 1)[-1]
-    media_type = "application/pdf" if filename.lower().endswith(".pdf") else "text/plain; charset=utf-8"
+    media_type = {".pdf": "application/pdf", ".docx": DOCX_MIME}.get(Path(filename).suffix.lower(), "text/plain; charset=utf-8")
     return Response(data, media_type=media_type, headers={"Content-Disposition": f"attachment; filename*=UTF-8''{quote(filename)}"})
 
 
