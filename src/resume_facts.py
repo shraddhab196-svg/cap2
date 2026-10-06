@@ -10,6 +10,7 @@ from typing import Any
 
 MAX_TOTAL_CHARS = 1500
 MAX_LINES = 8
+MAX_LINES_PER_GROUP = 3
 MAX_LINE_CHARS = 220
 MIN_LINE_CHARS = 25
 COVERED_SHARE = 0.6
@@ -21,7 +22,9 @@ RESUME_FACTS_HEADER = (
 )
 RESUME_FACTS_RULES = (
     "Rules for these facts: use only what is written above; copy numbers exactly; do not add a baseline, "
-    "a time frame or a result that is not written; if a number has no baseline, state it plainly without a comparison."
+    "a time frame or a result that is not written; if a number has no baseline, state it plainly without a comparison. "
+    "Before saying the candidate lacks a skill or experience, check these facts; if they cover it, use them instead of "
+    "claiming a gap."
 )
 
 # Short tool-like tokens worth matching even though they are under 4 letters.
@@ -70,13 +73,39 @@ def _is_contact_line(line: str) -> bool:
     return bool(EMAIL.search(line) or URL.search(line) or PHONE.search(line))
 
 
-def _resume_lines(resume_text: str) -> list[str]:
-    raw = [line for chunk in str(resume_text or "").splitlines() for line in BULLETS.split(chunk)]
-    lines = [" ".join(LEADING_MARKER.sub("", line).split()) for line in raw]
-    lines = [line for line in lines if line]
-    if lines and _looks_like_name_header(lines[0]):
-        lines = lines[1:]
-    return [line for line in lines if len(line) >= MIN_LINE_CHARS and not _is_contact_line(line)]
+def _resume_items(resume_text: str) -> list[tuple[str, bool]]:
+    """Logical items as (text, is_bullet): a bullet wrapped over several extracted lines becomes one item."""
+    items: list[list[Any]] = []  # [text, is_bullet]
+    for chunk in str(resume_text or "").splitlines():
+        for part_index, part in enumerate(BULLETS.split(chunk)):
+            # Text after a bullet symbol, or after "- " / "* " / "– " / "— " at the start of a line, starts a new bullet.
+            is_bullet = part_index > 0 or bool(LEADING_MARKER.match(part))
+            text = " ".join(LEADING_MARKER.sub("", part).split())
+            if not text:
+                continue
+            previous = items[-1] if items else None
+            if not is_bullet and previous and previous[1] and (
+                not previous[0].endswith((".", "!", "?", ":")) or text[0].islower() or text[0] == "(" or text[0].isdigit()
+            ):
+                previous[0] += " " + text  # continuation of a wrapped bullet
+                continue
+            items.append([text, is_bullet])
+    return [(text, is_bullet) for text, is_bullet in items]
+
+
+def _resume_lines(resume_text: str) -> list[tuple[str, str]]:
+    """Usable resume items as (line, group); group is the nearest preceding header line ("" when there is none)."""
+    items = _resume_items(resume_text)
+    if items and _looks_like_name_header(items[0][0]):
+        items = items[1:]
+    lines: list[tuple[str, str]] = []
+    group = ""
+    for text, is_bullet in items:
+        if not is_bullet:
+            group = text  # a header (role, company, section or plain prose) starts a new group
+        if len(text) >= MIN_LINE_CHARS and not _is_contact_line(text):
+            lines.append((text, group if is_bullet else ""))
+    return lines
 
 
 def _tokens(text: str) -> set[str]:
@@ -96,32 +125,39 @@ def select_resume_facts(
     letters: list[tuple[str, str]],
     max_chars: int = MAX_TOTAL_CHARS,
 ) -> str:
-    """Return up to 8 relevant resume lines as '- ' bullets in resume order, or "" when nothing qualifies."""
+    """Return up to 8 relevant resume lines as '- ' bullets in resume order, or "" when nothing qualifies.
+
+    At most 3 lines come from one header's group, so a single job or project cannot fill every slot.
+    """
     lines = _resume_lines(resume_text)
     if not lines:
         return ""
     keywords = _keywords(job_description, selected_anchor)
     letter_grams = _ngrams(_normalize(" ".join(text for _, text in letters or [])).split())
 
-    candidates: list[tuple[int, int, str]] = []  # (score, resume position, line)
-    for position, line in enumerate(lines):
+    candidates: list[tuple[int, int, str, str]] = []  # (score, resume position, line, group)
+    for position, (line, group) in enumerate(lines):
         score = len(keywords & _tokens(line)) + (1 if re.search(r"[\d%]", line) else 0)
         if score < 1:
             continue
         grams = _ngrams(_normalize(line).split())
         if grams and sum(gram in letter_grams for gram in grams) / len(grams) >= COVERED_SHARE:
             continue  # the candidate's own letters already say this
-        candidates.append((score, position, _cap(line, MAX_LINE_CHARS)))
+        candidates.append((score, position, _cap(line, MAX_LINE_CHARS), group))
 
     chosen: list[tuple[int, str]] = []
+    per_group: dict[str, int] = {}
     total = 0
-    for score, position, line in sorted(candidates, key=lambda item: (-item[0], item[1])):
+    for score, position, line, group in sorted(candidates, key=lambda item: (-item[0], item[1])):
         if len(chosen) >= MAX_LINES:
             break
+        if group and per_group.get(group, 0) >= MAX_LINES_PER_GROUP:
+            continue
         cost = len(line) + 2 + (1 if chosen else 0)  # "- " prefix and the joining newline
         if total + cost > max_chars:
             continue
         chosen.append((position, line))
+        per_group[group] = per_group.get(group, 0) + 1
         total += cost
     return "\n".join(f"- {line}" for _, line in sorted(chosen))
 

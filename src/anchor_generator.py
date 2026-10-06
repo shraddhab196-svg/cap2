@@ -98,7 +98,7 @@ def build_anchor_prompt(company_url: str, job_description: str, company_research
         snippet = text.strip()
         if len(snippet) > 5000:
             snippet = snippet[:5000] + "\n... [truncated for analysis]"
-        letter_sections.append(f"--- LETTER {index} ({name}) ---\n{snippet}\n")
+        letter_sections.append(f"--- LETTER {index} ---\n{snippet}\n")  # position, not filename (filenames can name companies)
 
     return f"""
 You are identifying evidence-based, personalized anchors that connect a company, a job, and the candidate's prior experience.
