@@ -28,7 +28,8 @@ class AngleIsolationTests(unittest.TestCase):
              patch.object(app, "save_job_application", side_effect=self.save_job), \
              patch.object(app, "research_company", return_value={"company_research": "notes"}), \
              patch.object(app, "get_cover_letters_for_user", return_value=[{"filename": "l.txt", "content": "text"}]), \
-             patch.object(app, "generate_anchors", return_value={"anchors": [{"title": angle_title}]}):
+             patch.object(app, "generate_anchors", return_value={"anchors": [{"title": angle_title}]}), \
+             patch.object(app, "count_recent_ai_actions", return_value=0):
             client.post("/profile/job-input", data={"job_description": "jd", "company_url": "https://example.com"}, follow_redirects=False)
 
     def angles_page(self, client, job_id):

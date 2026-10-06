@@ -660,35 +660,13 @@ def normalize_for_comparison(text: str) -> str:
 
 
 def is_effectively_unchanged(current_letter: str, revised_letter: str) -> bool:
-    """Reject revisions that are identical or effectively unchanged from the current version."""
+    """Reject revisions identical to the current version apart from whitespace and case.
+
+    Compares text only, so line breaks don't matter: a letter with single newlines still counts as changed.
+    """
     if not current_letter or not revised_letter:
         return True
-
-    def paragraph_list(text: str) -> list[str]:
-        paragraphs = []
-        for raw_paragraph in re.split(r"\n\s*\n", text.strip()):
-            cleaned = normalize_for_comparison(raw_paragraph)
-            if cleaned:
-                paragraphs.append(cleaned)
-        return paragraphs
-
-    current_paragraphs = paragraph_list(current_letter)
-    revised_paragraphs = paragraph_list(revised_letter)
-
-    if current_paragraphs == revised_paragraphs:
-        return True
-
-    if not current_paragraphs or not revised_paragraphs:
-        return True
-
-    current_body = [p for p in current_paragraphs if not p.startswith("dear hiring manager")]
-    revised_body = [p for p in revised_paragraphs if not p.startswith("dear hiring manager")]
-
-    if not current_body or not revised_body:
-        return True
-
-    # Feedback may target only the middle or closing paragraph, so an identical opening alone is not "unchanged".
-    return False
+    return normalize_for_comparison(current_letter) == normalize_for_comparison(revised_letter)
 
 
 NUMBER_WORDS = {"one": 1, "two": 2, "three": 3, "four": 4, "five": 5, "six": 6, "seven": 7, "eight": 8, "nine": 9, "ten": 10}

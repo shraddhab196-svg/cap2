@@ -115,6 +115,7 @@ An anchor is not a generic statement about liking the company or being passionat
 Hard rules:
 - Use only information present in the company research, job description, and the candidate's previous cover letters.
 - Do not invent company facts, candidate skills, achievements, technologies, projects, or responsibilities.
+- company_evidence must use wording taken directly from the company research: copy a complete sentence from it (or keep its exact wording as closely as possible) instead of paraphrasing. It must describe a fact about the company found in company research, not a requirement from the job description or evidence about the candidate. Do not add the company's name or any detail the copied text does not contain.
 - Do not write a final cover letter.
 - Do not produce generic statements such as "I am passionate about your company," "I admire your mission," or "I would love to work here."
 - Do not generate duplicate anchors that just restate the same connection in a different way.

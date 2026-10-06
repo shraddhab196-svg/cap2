@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import logging
 import os
+import re
 import time
 from functools import lru_cache
 from types import SimpleNamespace
@@ -32,6 +33,10 @@ for _name in ("LiteLLM", "LiteLLM Router", "LiteLLM Proxy"):
 TIMEOUT_SECONDS = 30.0
 NUM_RETRIES = 1
 DEFAULT_GROQ_MODEL = "qwen/qwen3.8-27b"
+RATE_LIMIT_MAX_WAIT_SECONDS = 20.0
+RATE_LIMIT_FALLBACK_WAIT_SECONDS = 10.0
+# Groq says e.g. "Please try again in 7.66s.", "in 1m2.5s." or "in 450ms."
+RETRY_AFTER = re.compile(r"try again in (?:(\d+)m)?(\d+(?:\.\d+)?)(ms|s)\b", re.IGNORECASE)
 
 logger = logging.getLogger("llm")
 
@@ -74,19 +79,38 @@ def get_router() -> Router:
     return Router(model_list=model_list, fallbacks=fallbacks, num_retries=NUM_RETRIES, timeout=TIMEOUT_SECONDS)
 
 
+def rate_limit_wait_seconds(message: str) -> float:
+    """The provider's suggested wait, capped; a fixed fallback when the message has none."""
+    match = RETRY_AFTER.search(message or "")
+    if not match:
+        return RATE_LIMIT_FALLBACK_WAIT_SECONDS
+    minutes, amount, unit = match.groups()
+    seconds = float(amount) / 1000 if unit.lower() == "ms" else float(amount)
+    return min(seconds + 60 * int(minutes or 0), RATE_LIMIT_MAX_WAIT_SECONDS)
+
+
 def complete(step: str, messages: list[dict[str, Any]], **params: Any) -> Any:
-    """Run one chat completion through the gateway and return the OpenAI-shaped response."""
+    """Run one chat completion through the gateway and return the OpenAI-shaped response.
+
+    A rate limit gets one more try after the provider's suggested wait (at most 20 seconds).
+    """
     started = time.perf_counter()
-    try:
-        response = get_router().completion(model="m0", messages=messages, **params)
-    except ValueError:
-        raise  # configuration problem (e.g. missing key): keep the clear message
-    except litellm.RateLimitError as exc:
-        logger.warning("llm busy step=%s: %s", step, exc)
-        raise LLMBusyError(detail=str(exc)) from exc
-    except Exception as exc:
-        logger.error("llm failed step=%s: %s", step, exc)
-        raise LLMError(detail=str(exc)) from exc
+    for attempt in range(2):
+        try:
+            response = get_router().completion(model="m0", messages=messages, **params)
+            break
+        except ValueError:
+            raise  # configuration problem (e.g. missing key): keep the clear message
+        except litellm.RateLimitError as exc:
+            logger.warning("llm busy step=%s: %s", step, exc)
+            if attempt:
+                raise LLMBusyError(detail=str(exc)) from exc
+            wait = rate_limit_wait_seconds(str(exc))
+            logger.warning("llm retry step=%s wait=%.1fs", step, wait)
+            time.sleep(wait)
+        except Exception as exc:
+            logger.error("llm failed step=%s: %s", step, exc)
+            raise LLMError(detail=str(exc)) from exc
     log_usage(step, response, time.perf_counter() - started)
     return response
 

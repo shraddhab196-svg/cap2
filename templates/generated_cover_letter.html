@@ -131,7 +131,6 @@
         <div class="alert" role="alert">{{ error }}</div>
         {% endif %}
         <div data-step="question" {% if dialog_step == 'feedback' %}hidden{% endif %}>
-            <h2 id="satisfaction-title">Your cover letter is ready 🎉</h2>
             <p>You've completed {{ max_revisions }} revisions. Are you satisfied with your cover letter?</p>
             <div class="dialog-actions">
                 <form method="post" action="/cover-letter/satisfaction">

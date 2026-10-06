@@ -31,6 +31,13 @@ class AnchorGeneratorRequestTests(unittest.TestCase):
         self.assertLess(client.chat.completions.create.call_args.kwargs["max_tokens"], 1000)
         self.assertEqual(len(payload["anchors"]), 3)
 
+    def test_prompt_asks_for_company_evidence_copied_from_research(self):
+        prompt = anchor_generator.build_anchor_prompt("https://example.com", "JD", "### Source: https://example.com\nResearch text.", [("letter", "text")])
+        self.assertIn("company_evidence must use wording taken directly from the company research", prompt)
+        self.assertIn("copy a complete sentence from it", prompt)
+        self.assertIn("instead of paraphrasing", prompt)
+        self.assertIn("not a requirement from the job description or evidence about the candidate", prompt)
+
 
 def run(anchors):
     client = MagicMock()
