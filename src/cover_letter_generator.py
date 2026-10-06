@@ -184,6 +184,17 @@ def apply_signature(letter: str, candidate_name: str | None) -> str:
     return "\n".join(lines)
 
 
+def user_reason_line(anchor: dict[str, Any]) -> str:
+    """The candidate's own 'why this company' line for the prompt; empty (prompt unchanged) when not given."""
+    reason = " ".join(str(anchor.get("user_reason") or "").split())
+    if not reason:
+        return ""
+    return (
+        "Candidate's own reason for choosing this company (their words; base the why-this-company part on it, "
+        f"do not embellish or add motives): {reason}\n"
+    )
+
+
 def candidate_identity_lines(candidate_name: str | None) -> tuple[str, str]:
     """Return (identity line, sign-off rule) built only from the current user's own candidate name, if known."""
     if candidate_name:
@@ -217,6 +228,7 @@ def build_cover_letter_plan_prompt(
             f"Candidate evidence: {anchor.get('candidate_evidence', '')}\n"
             f"Anchor statement: {anchor.get('anchor', '')}\n"
             f"Source URL: {anchor.get('source_url', company_url)}\n"
+            + user_reason_line(anchor)
         )
 
     evidence_sections: list[str] = []
@@ -430,6 +442,7 @@ def build_cover_letter_prompt(
             f"Candidate evidence: {anchor.get('candidate_evidence', '')}\n"
             f"Anchor statement: {anchor.get('anchor', '')}\n"
             f"Source URL: {anchor.get('source_url', company_url)}\n"
+            + user_reason_line(anchor)
         )
 
     evidence_sections: list[str] = []
@@ -769,6 +782,7 @@ def build_cover_letter_revision_prompt(
             f"Candidate evidence: {anchor.get('candidate_evidence', '')}\n"
             f"Anchor statement: {anchor.get('anchor', '')}\n"
             f"Source URL: {anchor.get('source_url', company_url)}\n"
+            + user_reason_line(anchor)
         )
 
     evidence_sections: list[str] = []

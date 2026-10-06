@@ -30,6 +30,12 @@
                     <textarea class="input" id="company_extra" name="company_extra" rows="4" aria-describedby="company_extra_hint">{{ company_extra or '' }}</textarea>
                 </div>
 
+                <div class="field">
+                    <label class="field-label" for="user_reason">Why this company, in one line (optional)</label>
+                    <span class="field-hint" id="user_reason_hint">Your real reason. The letter builds its 'why them' part on it.</span>
+                    <input class="input" id="user_reason" name="user_reason" type="text" maxlength="300" value="{{ user_reason or '' }}" aria-describedby="user_reason_hint" />
+                </div>
+
                 <div class="actions">
                     <button type="submit" class="btn" data-magnetic>Continue</button>
                 </div>

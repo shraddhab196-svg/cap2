@@ -884,6 +884,7 @@ def profile_ready(request: Request):
 
 
 THIN_RESEARCH_CHARS = 800
+USER_REASON_MAX_CHARS = 300
 FALLBACK_URL_MAX_CHARS = 1500
 FALLBACK_TEXT_MAX_CHARS = 3000
 
@@ -953,7 +954,13 @@ NO_COMPANY_RESEARCH = (
 
 
 @app.post("/profile/job-input", response_class=HTMLResponse)
-def submit_job_input(request: Request, job_description: str = Form(...), company_url: str = Form(...), company_extra: str = Form("")):
+def submit_job_input(
+    request: Request,
+    job_description: str = Form(...),
+    company_url: str = Form(...),
+    company_extra: str = Form(""),
+    user_reason: str = Form(""),
+):
     try:
         user = app_user_for_request(request)
         jd = (job_description or "").strip()
@@ -994,6 +1001,12 @@ def submit_job_input(request: Request, job_description: str = Form(...), company
             sources=research_pages if isinstance(research_pages, list) else None,
         )
         anchors = anchor_payload.get("anchors") if isinstance(anchor_payload, dict) else None
+        reason = " ".join((user_reason or "").split())[:USER_REASON_MAX_CHARS]
+        if reason and isinstance(anchors, list):
+            # Travels with whichever angle is chosen (selected_anchor) into the letter and revision prompts.
+            for anchor in anchors:
+                if isinstance(anchor, dict):
+                    anchor["user_reason"] = reason
         job_application = save_job_application(
             user_id,
             jd,
@@ -1017,6 +1030,7 @@ def submit_job_input(request: Request, job_description: str = Form(...), company
                 "job_description": job_description or "",
                 "company_url": company_url or "",
                 "company_extra": company_extra or "",
+                "user_reason": user_reason or "",
                 "error": user_error(exc),
             })
         except HTTPException:
@@ -1030,6 +1044,7 @@ def submit_job_input(request: Request, job_description: str = Form(...), company
                 "job_description": job_description or "",
                 "company_url": company_url or "",
                 "company_extra": company_extra or "",
+                "user_reason": user_reason or "",
                 "error": user_error(exc),
             })
         except HTTPException:
