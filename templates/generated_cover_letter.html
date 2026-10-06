@@ -19,15 +19,36 @@
                         <span class="rev-dots" aria-hidden="true">{% for i in range(max_revisions) %}<i{% if i < revision_number %} class="used"{% endif %}></i>{% endfor %}</span>
                         {% if is_final %}Final version accepted.{% elif revision_number %}Revision {{ revision_number }} of {{ max_revisions }}{% else %}Original draft ({{ max_revisions }} revisions available){% endif %}
                     </span>
+                    <span class="sheet-tools">
+                    {% if job_application_id and cover_letter_id %}
+                    <button type="button" class="btn btn-ghost btn-sm btn-plain edit-btn js-only" data-edit-letter aria-controls="letter-edit">
+                        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20h4L19 9l-4-4L4 16v4z"/><path d="M14 6l4 4"/></svg>
+                        Edit
+                    </button>
+                    {% endif %}
                     <button type="button" class="btn btn-ghost btn-sm btn-plain copy-btn" data-copy="letter-text">
                         <svg class="ic-copy" viewBox="0 0 24 24" aria-hidden="true"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a1 1 0 0 1 1-1h9"/></svg>
                         <svg class="ic-done" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>
                         <span data-copy-label>Copy</span>
                     </button>
+                    </span>
                 </div>
                 <article class="sheet">
                     {% if is_final %}<span class="stamp" aria-hidden="true">Final</span>{% endif %}
                     <div class="letter-text" id="letter-text">{{ cover_letter }}</div>
+                    {% if job_application_id and cover_letter_id %}
+                    <form class="letter-edit" id="letter-edit" method="post" action="/cover-letter/edit" data-loading hidden>
+                        <input type="hidden" name="job_application_id" value="{{ job_application_id }}" />
+                        <input type="hidden" name="cover_letter_id" value="{{ cover_letter_id }}" />
+                        <label class="visually-hidden" for="letter-content">Edit your letter</label>
+                        <textarea class="letter-edit-area" id="letter-content" name="content" data-autogrow required data-msg-missing="Your letter can't be empty. Cancel to undo, or add some text.">{{ cover_letter }}</textarea>
+                        <div class="letter-edit-actions">
+                            <span class="note">Your edits don't use up a revision.</span>
+                            <button type="button" class="btn btn-ghost btn-sm btn-plain" data-edit-cancel>Cancel</button>
+                            <button type="submit" class="btn btn-sm">Save changes</button>
+                        </div>
+                    </form>
+                    {% endif %}
                 </article>
             </div>
 

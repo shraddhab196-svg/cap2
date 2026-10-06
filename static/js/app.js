@@ -146,6 +146,39 @@
         });
     });
 
+    // --- Edit the letter in place: the text becomes a textarea; Save posts it, Cancel restores it.
+    $$("[data-edit-letter]").forEach((button) => {
+        const form = document.getElementById(button.getAttribute("aria-controls"));
+        if (!form) return;
+        const wrap = button.closest(".sheet-wrap");
+        const area = form.querySelector("textarea");
+        const original = area.value;
+        let saving = false;
+        const open = () => {
+            wrap.classList.add("is-editing");
+            form.hidden = false;
+            area.dispatchEvent(new Event("input")); // let autogrow size it now that it's visible
+            area.focus();
+            area.setSelectionRange(area.value.length, area.value.length);
+        };
+        const close = () => {
+            area.value = original;
+            form.hidden = true;
+            wrap.classList.remove("is-editing");
+            button.focus();
+        };
+        button.addEventListener("click", open);
+        form.querySelector("[data-edit-cancel]").addEventListener("click", close);
+        form.addEventListener("keydown", (event) => {
+            if (event.key === "Escape") close();
+            if (event.key === "Enter" && (event.ctrlKey || event.metaKey)) form.requestSubmit();
+        });
+        form.addEventListener("submit", () => { saving = true; });
+        addEventListener("beforeunload", (event) => {
+            if (!saving && !form.hidden && area.value !== original) event.preventDefault(); // unsaved edits
+        });
+    });
+
     // --- Signup password checklist; the same rules are enforced on the server.
     $$("[data-password-rules]").forEach((input) => {
         const rules = {

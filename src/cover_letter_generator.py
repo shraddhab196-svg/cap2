@@ -146,35 +146,43 @@ def trim_evidence_snippet(text: str, limit: int = 500) -> str:
     return f"{trimmed} ... [truncated]"
 
 
-NAME_WORD = re.compile(r"^[^\W\d_][^\W\d_'.-]*(?:['.-][^\W\d_]+)*\.?$")
+try:  # one name reader for the whole app
+    from src.profile_builder import extract_candidate_name  # noqa: F401  (re-exported)
+except ImportError:  # run as a script from src/
+    from profile_builder import extract_candidate_name  # noqa: F401
+
+# Closing lines a letter can end with ("Sincerely,", "Best regards,", "Thank you,").
+CLOSING_LINE = re.compile(
+    r"^(?:yours\s+)?(?:sincerely|truly|faithfully|respectfully|cordially|cheers|best|regards|thanks|thank you|"
+    r"(?:best|kind|warm|warmest|kindest)\s+(?:regards|wishes)|with\s+(?:gratitude|appreciation|thanks|best wishes))[,.!]?$",
+    re.IGNORECASE,
+)
 
 
-# Heading and job-title words that can sit above the name at the top of a resume.
-RESUME_HEADINGS = {
-    "curriculum", "vitae", "resume", "résumé", "cv", "lebenslauf", "profile", "contact", "summary",
-    "senior", "junior", "lead", "principal", "staff", "head", "chief", "engineer", "developer", "scientist",
-    "analyst", "manager", "designer", "consultant", "architect", "researcher", "student", "intern", "data",
-    "software", "machine", "learning", "ml", "ai", "product", "full-stack", "frontend", "backend", "devops",
-}
+def apply_signature(letter: str, candidate_name: str | None) -> str:
+    """Put the candidate's own name under the closing, replacing whatever name the model wrote there.
 
-
-def extract_candidate_name(resume_text: str | None) -> str | None:
-    """Return the name a resume starts with ("Jane Doe", "JANE DOE"), or None if the top doesn't look like one.
-
-    ponytail: a heuristic over the first few lines; add a "your name" profile field if resumes defeat it.
+    Only the first short line after the last closing is treated as the name; contact lines below it are kept.
+    No known name or no closing: the letter is returned unchanged.
     """
-    lines = [line.strip() for line in (resume_text or "").splitlines() if line.strip()]
-    for line in lines[:4]:
-        # "Jane Doe | Berlin", "Jane Doe, M.Sc." -> "Jane Doe"
-        words = re.split(r"[|,•·–—]", line, maxsplit=1)[0].split()
-        if {word.lower().strip(":") for word in words} & RESUME_HEADINGS:
+    if not candidate_name or not letter:
+        return letter
+    lines = letter.split("\n")
+    closing = next((i for i in range(len(lines) - 1, -1, -1) if CLOSING_LINE.match(lines[i].strip())), None)
+    if closing is None:
+        return letter
+    for i in range(closing + 1, len(lines)):
+        line = lines[i].strip()
+        if not line:
             continue
-        if 2 <= len(words) <= 4 and all(NAME_WORD.match(word) for word in words) and all(word[0].isupper() for word in words):
-            return " ".join(word if not word.isupper() or len(word) <= 2 else word.capitalize() for word in words)
-    return None
+        looks_like_name = len(line.split()) <= 5 and not re.search(r"[\d@/:]", line)
+        if looks_like_name:
+            lines[i] = candidate_name
+            return "\n".join(lines)
+        break
+    lines.insert(closing + 1, candidate_name)
+    return "\n".join(lines)
 
-
- 
 
 def candidate_identity_lines(candidate_name: str | None) -> tuple[str, str]:
     """Return (identity line, sign-off rule) built only from the current user's own candidate name, if known."""
@@ -924,7 +932,7 @@ def generate_cover_letter_revision(
         if not isinstance(payload, dict) or "cover_letter" not in payload:
             raise ValueError("Groq response did not include a cover_letter field for the revision.")
 
-        revised_letter = str(payload["cover_letter"]).strip()
+        revised_letter = apply_signature(str(payload["cover_letter"]).strip(), candidate_name)
         validate_generated_letter(revised_letter, selected_anchors, job_description, min_words=min_words, candidate_name=candidate_name)
 
         if is_effectively_unchanged(current_letter, revised_letter):
@@ -1001,7 +1009,7 @@ def generate_cover_letter(
         if not isinstance(payload, dict) or "cover_letter" not in payload:
             raise ValueError("Groq response did not include a cover_letter field.")
 
-        letter = str(payload["cover_letter"]).strip()
+        letter = apply_signature(str(payload["cover_letter"]).strip(), candidate_name)
         validate_generated_letter(letter, selected_anchors, job_description, candidate_name=candidate_name)
 
         # writing framework: the complete letter must stay within the word limit.

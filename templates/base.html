@@ -12,7 +12,7 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght,SOFT@0,9..144,300..800,0..100;1,9..144,300..800,0..100&family=Instrument+Sans:wght@400..700&family=JetBrains+Mono:wght@400;500&display=swap" />
     <link rel="stylesheet" href="{{ asset('css/base.css') }}?v=5" />
-    {% block styles %}<link rel="stylesheet" href="{{ asset('css/app.css') }}?v=6" />{% endblock %}
+    {% block styles %}<link rel="stylesheet" href="{{ asset('css/app.css') }}?v=7" />{% endblock %}
     <script>document.documentElement.classList.add("js");</script>
 </head>
 <body class="{% block body_class %}app{% endblock %}">
@@ -30,7 +30,7 @@
             <p class="ink-hint">This can take a moment · keep this tab open</p>
         </div>
     </div>
-    <script src="{{ asset('js/app.js') }}?v=5" defer></script>
+    <script src="{{ asset('js/app.js') }}?v=6" defer></script>
 {% block scripts %}{% endblock %}
 </body>
 </html>

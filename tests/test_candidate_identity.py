@@ -8,6 +8,7 @@ from fastapi.testclient import TestClient
 
 import app
 from src import cover_letter_generator as generator
+from src.cover_letter_generator import apply_signature
 from src.profile_builder import extract_candidate_name
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -115,6 +116,17 @@ class ExtractCandidateNameTests(unittest.TestCase):
             with self.subTest(text=text):
                 self.assertEqual(extract_candidate_name(text), expected)
 
+    def test_job_titles_above_the_name_are_skipped(self):
+        cases = {
+            "Software Engineer\nJane Doe\njane@x.com": "Jane Doe",
+            "Senior Data Scientist\nJane Doe": "Jane Doe",
+            "Machine Learning Engineer | Berlin\nJANE DOE": "Jane Doe",
+            "Product Designer\nUX Researcher\nSam Lee": "Sam Lee",
+        }
+        for text, expected in cases.items():
+            with self.subTest(text=text):
+                self.assertEqual(extract_candidate_name(text), expected)
+
     def test_returns_none_when_no_clear_name(self):
         for text in ("", "rahul@example.com\n+49 170 1234567", "Resume\nProfessional Experience\n2019-2024 Analyst"):
             with self.subTest(text=text):
@@ -161,6 +173,28 @@ class UserIsolationTests(unittest.TestCase):
         mock_generate = self.stack.enter_context(patch.object(app, "generate_cover_letter", return_value=letter_signed_by("Resham Joshi")))
         self.client.post("/company/angles", data={"selected_anchor": "0", "job_application_id": "job-b"})
         self.assertEqual(mock_generate.call_args.kwargs["candidate_name"], "Resham Joshi")
+
+
+class SignOffNameTests(unittest.TestCase):
+    """The name under the sign-off is set by code, so the model can't sign as someone else."""
+
+    def test_wrong_name_after_the_closing_is_replaced(self):
+        cases = {
+            "Dear team,\n\nBody.\n\nSincerely,\nResham Joshi": "Dear team,\n\nBody.\n\nSincerely,\nJane Doe",
+            "Body.\n\nBest regards,\n\nJohn": "Body.\n\nBest regards,\n\nJane Doe",
+            "Body.\n\nKind regards,\nSoftware Engineer\njane@x.com": "Body.\n\nKind regards,\nJane Doe\njane@x.com",
+            "Body.\n\nThank you,": "Body.\n\nThank you,\nJane Doe",
+            "Body.\n\nSincerely,\nJane Doe": "Body.\n\nSincerely,\nJane Doe",
+        }
+        for letter, expected in cases.items():
+            with self.subTest(letter=letter):
+                self.assertEqual(apply_signature(letter, "Jane Doe"), expected)
+
+    def test_left_alone_without_a_name_or_a_closing(self):
+        self.assertEqual(apply_signature("Body.\n\nSincerely,\nSomeone", None), "Body.\n\nSincerely,\nSomeone")
+        self.assertEqual(apply_signature("Body with no closing.", "Jane Doe"), "Body with no closing.")
+        # "Best" inside a sentence is not a closing.
+        self.assertEqual(apply_signature("Best of all, I ship.\nMore text.", "Jane Doe"), "Best of all, I ship.\nMore text.")
 
 
 if __name__ == "__main__":

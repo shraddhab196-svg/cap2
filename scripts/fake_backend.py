@@ -121,6 +121,13 @@ def fakes(latency: float = 0.0) -> dict[str, Any]:
                 row["is_final"] = row["id"] == cover_letter_id
         return {"id": cover_letter_id}
 
+    def update_generated_cover_letter_content(user_id, cover_letter_id, content, **_):
+        for row in mine(db["letters"], user_id):
+            if row["id"] == cover_letter_id:
+                row["content"] = content
+                return row
+        raise RuntimeError("Failed to save the edited cover letter.")
+
     def research_company(company_url):
         slow(0.5)
         if "fail" in company_url.lower():
@@ -169,6 +176,8 @@ def fakes(latency: float = 0.0) -> dict[str, Any]:
         "count_recent_ai_actions": lambda user_id, since, **_: len(mine(list(db["jobs"].values()), user_id)) + len(mine(db["letters"], user_id)),
         "get_generated_cover_letters_for_job": get_generated_cover_letters_for_job,
         "mark_generated_cover_letter_final": mark_generated_cover_letter_final,
+        "update_generated_cover_letter_content": update_generated_cover_letter_content,
+        "save_user_full_name": lambda full_name, **_: None,
         "research_company": research_company,
         "generate_anchors": generate_anchors,
         "generate_cover_letter": generate_cover_letter,

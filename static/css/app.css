@@ -673,3 +673,25 @@
 .dropzone.pen-loader::after { flex: none; margin-left: auto; color: var(--pen); }
 .file-link { color: inherit; text-decoration: underline; text-decoration-color: var(--line-strong); text-underline-offset: 3px; }
 .file-link:hover { color: var(--pen); text-decoration-color: currentColor; }
+
+/* Name on your letters (profile setup) */
+.name-row { display: flex; gap: 10px; align-items: center; }
+.name-row .input { flex: 1; }
+.name-hint { margin-top: 8px; }
+
+/* Editing the letter in place */
+.sheet-tools { display: inline-flex; gap: 8px; align-items: center; }
+.edit-btn { gap: 8px; }
+.edit-btn svg { width: 15px; height: 15px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+html:not(.js) .js-only { display: none; }
+.letter-edit-area {
+    display: block; width: 100%; min-height: 420px; resize: vertical;
+    padding: 14px 16px; margin: -14px -16px 0; width: calc(100% + 32px);
+    border: 1px dashed var(--pen); border-radius: 10px; background: rgba(255, 255, 255, 0.55);
+    font-family: var(--f-display); font-size: clamp(1rem, 1.25vw, 1.1rem); line-height: 1.8;
+    font-variation-settings: "SOFT" 30, "opsz" 14; color: var(--ink-2);
+}
+.letter-edit-area:focus { outline: none; border-style: solid; box-shadow: 0 0 0 3px var(--pen-wash); }
+.letter-edit-actions { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; justify-content: flex-end; margin-top: 16px; }
+.letter-edit-actions .note { margin-right: auto; }
+.is-editing .letter-text, .is-editing .stamp, .is-editing [data-edit-letter] { display: none; }
