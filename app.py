@@ -17,6 +17,7 @@ from typing import Any
 from urllib.parse import quote, urlencode
 
 import anyio.to_thread
+from bs4 import BeautifulSoup
 from dotenv import load_dotenv
 from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import HTMLResponse, RedirectResponse, Response
@@ -29,8 +30,8 @@ from supabase import create_client
 from supabase_auth.helpers import generate_pkce_challenge, generate_pkce_verifier
 
 from src.anchor_generator import generate_anchors
-from src.company_researcher import research_company
-from src.cover_letter_generator import generate_cover_letter, generate_cover_letter_revision
+from src.company_researcher import cap_text, extract_company_text, fetch_company_html, research_company
+from src.cover_letter_generator import extract_candidate_name, generate_cover_letter, generate_cover_letter_revision
 from src.database import (
     delete_all_resumes_for_user,
     delete_cover_letter_for_user,
@@ -882,6 +883,54 @@ def profile_ready(request: Request):
         return RedirectResponse(url="/login", status_code=303)
 
 
+THIN_RESEARCH_CHARS = 800
+FALLBACK_URL_MAX_CHARS = 1500
+FALLBACK_TEXT_MAX_CHARS = 3000
+
+
+def company_fallback_section(company_extra: str) -> tuple[str, str] | None:
+    """Turn the optional 'company text or another page URL' box into (source label, text), or None if it yields nothing."""
+    extra = (company_extra or "").strip()
+    if not extra:
+        return None
+    if "\n" not in extra and re.match(r"https?://\S+$", extra, re.IGNORECASE):
+        try:
+            # Same public-address (SSRF) checks as the main company URL.
+            text = cap_text(extract_company_text(extra, fetch_company_html(extra)), FALLBACK_URL_MAX_CHARS)
+        except Exception:
+            return None
+        return (extra, text) if text else None
+    plain = BeautifulSoup(extra, "html.parser").get_text(" ")
+    lines = [" ".join(line.split()) for line in plain.splitlines()]
+    text = cap_text("\n".join(line for line in lines if line), FALLBACK_TEXT_MAX_CHARS)
+    return ("pasted by the user", text) if text else None
+
+
+def research_with_fallback(company_url: str, company_extra: str) -> dict[str, Any]:
+    """Main company research plus the optional fallback box; re-raises the main error only if both give nothing."""
+    try:
+        research = research_company(company_url)
+        main_error = None
+    except Exception as exc:
+        logger.warning("company research failed url=%s: %s: %s", company_url, type(exc).__name__, exc)
+        research, main_error = None, exc
+    fallback = company_fallback_section(company_extra)
+    if research is None and fallback is None:
+        raise main_error
+    research = research or {}
+    text = str(research.get("company_research") or "")
+    pages = list(research["pages"]) if isinstance(research.get("pages"), list) else None
+    if fallback:
+        source, fallback_text = fallback
+        text = f"{text}\n\n### Source: {source}\n{fallback_text}" if text else f"### Source: {source}\n{fallback_text}"
+        if pages is not None and source.startswith("http"):
+            pages.append(source)
+    result = {"company_url": company_url, "company_research": text, "fallback_used": fallback is not None}
+    if pages is not None:
+        result["pages"] = pages
+    return result
+
+
 @app.get("/profile/job-input", response_class=HTMLResponse)
 def job_input_page(request: Request):
     try:
@@ -904,7 +953,7 @@ NO_COMPANY_RESEARCH = (
 
 
 @app.post("/profile/job-input", response_class=HTMLResponse)
-def submit_job_input(request: Request, job_description: str = Form(...), company_url: str = Form(...)):
+def submit_job_input(request: Request, job_description: str = Form(...), company_url: str = Form(...), company_extra: str = Form("")):
     try:
         user = app_user_for_request(request)
         jd = (job_description or "").strip()
@@ -919,11 +968,13 @@ def submit_job_input(request: Request, job_description: str = Form(...), company
         access_token, refresh_token = get_request_session_tokens(request)
         enforce_daily_limit(request, user_id)
         try:
-            company_research = research_company(company_url_value)["company_research"]
-        except Exception as exc:
-            # The site may block bots, be down or be private: log it and carry on with the job description alone.
-            logger.warning("company research failed url=%s: %s: %s", company_url_value, type(exc).__name__, exc)
-            company_research = NO_COMPANY_RESEARCH
+            company_research = research_with_fallback(company_url_value, company_extra)
+        except Exception:
+            # The site may block bots, be down or be private (already logged): carry on with the job description alone.
+            company_research = {"company_url": company_url_value, "company_research": NO_COMPANY_RESEARCH}
+        request.session.pop("research_notice", None)
+        if len(company_research["company_research"]) < THIN_RESEARCH_CHARS and not (company_extra or "").strip():
+            request.session["research_notice"] = "thin"  # shown once on the angles page; never blocks the flow
         # Use this user's uploaded cover letters (the local extracted_letters folder held 8 letters and pushed
         # the anchor request over Groq's 7000 input-token limit).
         letter_rows = get_cover_letters_for_user(user_id, access_token=access_token, refresh_token=refresh_token)
@@ -938,7 +989,7 @@ def submit_job_input(request: Request, job_description: str = Form(...), company
         anchor_payload = generate_anchors(
             company_url=company_url_value,
             job_description=jd,
-            company_research=company_research,
+            company_research=company_research["company_research"],
             letters=letters,
             sources=research_pages if isinstance(research_pages, list) else None,
         )
@@ -965,6 +1016,7 @@ def submit_job_input(request: Request, job_description: str = Form(...), company
                 "user": user,
                 "job_description": job_description or "",
                 "company_url": company_url or "",
+                "company_extra": company_extra or "",
                 "error": user_error(exc),
             })
         except HTTPException:
@@ -977,6 +1029,7 @@ def submit_job_input(request: Request, job_description: str = Form(...), company
                 "user": user,
                 "job_description": job_description or "",
                 "company_url": company_url or "",
+                "company_extra": company_extra or "",
                 "error": user_error(exc),
             })
         except HTTPException:
@@ -1009,6 +1062,7 @@ def company_angles_page(request: Request):
             "job_description": job_description,
             "job_application_id": str(job_application["id"]),
             "anchors": anchors,
+            "notice": request.session.pop("research_notice", None),  # shown once
             "error": None,
         })
     except HTTPException:
