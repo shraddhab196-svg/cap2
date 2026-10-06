@@ -6,6 +6,7 @@ import os
 import re
 from pathlib import Path
 from typing import Any
+from urllib.parse import urlsplit
 
 from dotenv import load_dotenv
 
@@ -179,11 +180,61 @@ Quality bar:
 - 3 to 5 distinct anchors when genuinely supported by the evidence.
 - Different anchors should usually correspond to different evidence dimensions (for example: manufacturing ML pipeline, deployment experience, stakeholder communication, business impact, or technology stack alignment).
 - Each anchor must be specific and evidence-based.
+- Each anchor's source_url must be one of the "### Source:" URLs in the company research.
 - Use clean JSON only.
 """.strip()
 
 
-def generate_anchors(company_url: str, job_description: str, company_research: str, letters: list[tuple[str, str]]) -> dict[str, Any]:
+MATCH_SHORT_EVIDENCE_WORDS = 8
+MATCH_NGRAM = 4
+MATCH_MIN_SHARE = 0.6
+
+
+def normalize_for_match(text: str) -> str:
+    """Lowercase, drop punctuation and quotes, collapse whitespace."""
+    return " ".join(re.sub(r"[^\w\s]", " ", str(text or "").lower()).split())
+
+
+def evidence_matches_research(evidence: str, research: str) -> bool:
+    """Wording overlap between an anchor's company evidence and the fetched research (overlap, not truth)."""
+    evidence_words = normalize_for_match(evidence).split()
+    research_text = normalize_for_match(research)
+    if not evidence_words or not research_text:
+        return False
+    if len(evidence_words) < MATCH_SHORT_EVIDENCE_WORDS:
+        return f" {' '.join(evidence_words)} " in f" {research_text} "
+    research_words = research_text.split()
+    research_grams = {tuple(research_words[i:i + MATCH_NGRAM]) for i in range(len(research_words) - MATCH_NGRAM + 1)}
+    grams = [tuple(evidence_words[i:i + MATCH_NGRAM]) for i in range(len(evidence_words) - MATCH_NGRAM + 1)]
+    return sum(gram in research_grams for gram in grams) / len(grams) >= MATCH_MIN_SHARE
+
+
+def clean_source_url(source_url: Any, company_url: str, sources: list[str] | None) -> str:
+    """Keep an http(s) source URL (and, when the fetched pages are known, only one of them); else the company URL."""
+    url = str(source_url or "").strip()
+    parts = urlsplit(url)
+    if parts.scheme in ("http", "https") and parts.netloc:
+        if sources is None or url.rstrip("/") in {str(source).rstrip("/") for source in sources}:
+            return url
+    return company_url
+
+
+def annotate_anchors(anchors: list[dict[str, Any]], company_url: str, company_research: str, sources: list[str] | None) -> list[dict[str, Any]]:
+    """Add a checked source_url and company_evidence_matched to every anchor; never drops or reorders anchors."""
+    for anchor in anchors:
+        anchor["source_url"] = clean_source_url(anchor.get("source_url"), company_url, sources)
+        anchor["company_evidence_matched"] = evidence_matches_research(anchor.get("company_evidence", ""), company_research)
+    return anchors
+
+
+def generate_anchors(
+    company_url: str,
+    job_description: str,
+    company_research: str,
+    letters: list[tuple[str, str]],
+    *,
+    sources: list[str] | None = None,
+) -> dict[str, Any]:
     """Call Groq to generate the anchor set in valid JSON."""
     load_environment()
     client, model_name = get_llm_client()
@@ -252,7 +303,7 @@ def generate_anchors(company_url: str, job_description: str, company_research: s
         useful_anchors = [{**FALLBACK_ANCHOR, "source_url": company_url}]
 
     payload["company_url"] = company_url
-    payload["anchors"] = useful_anchors[:5]
+    payload["anchors"] = annotate_anchors(useful_anchors[:5], company_url, company_research, sources)
     return payload
 
 

@@ -934,11 +934,13 @@ def submit_job_input(request: Request, job_description: str = Form(...), company
         ]
         if not letters:
             raise ValueError("No previous cover letters were found for your profile. Please upload them in Profile Setup.")
+        research_pages = company_research.get("pages") if isinstance(company_research, dict) else None
         anchor_payload = generate_anchors(
             company_url=company_url_value,
             job_description=jd,
             company_research=company_research,
             letters=letters,
+            sources=research_pages if isinstance(research_pages, list) else None,
         )
         anchors = anchor_payload.get("anchors") if isinstance(anchor_payload, dict) else None
         job_application = save_job_application(

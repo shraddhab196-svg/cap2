@@ -379,6 +379,10 @@
 .evidence { display: grid; gap: 12px; margin: 0; padding-top: 16px; border-top: 1px dashed var(--line-strong); }
 .evidence dt { font-family: var(--f-mono); font-size: 0.68rem; letter-spacing: 0.12em; text-transform: uppercase; color: var(--ink-faint); }
 .evidence dd { margin: 4px 0 0; font-size: 0.88rem; color: var(--ink-soft); }
+.evidence-match { display: block; margin-top: 6px; font-size: 0.78rem; font-weight: 600; }
+.evidence-match.is-matched { color: var(--ok); }
+.evidence-match.is-unmatched { color: var(--pen); }
+.evidence-source { color: var(--ink-soft); overflow-wrap: anywhere; }
 .angle:has(.angle-radio:checked) { border-color: var(--pen); background: #fff; box-shadow: 0 0 0 4px var(--pen-wash), var(--shadow-paper); transform: translateY(-4px); }
 .angle:has(.angle-radio:checked) .angle-tick { background: var(--pen); border-color: var(--pen); }
 .angle:has(.angle-radio:checked) .angle-tick svg { opacity: 1; transform: none; }
