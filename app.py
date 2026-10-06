@@ -32,6 +32,7 @@ from supabase_auth.helpers import generate_pkce_challenge, generate_pkce_verifie
 from src.anchor_generator import generate_anchors
 from src.company_researcher import cap_text, extract_company_text, fetch_company_html, research_company
 from src.cover_letter_generator import extract_candidate_name, generate_cover_letter, generate_cover_letter_revision
+from src.resume_facts import select_resume_facts
 from src.database import (
     delete_all_resumes_for_user,
     delete_cover_letter_for_user,
@@ -393,13 +394,35 @@ def letter_name_for(request: Request, user_id: str, access_token: str | None, re
     return account_name(request) or candidate_name_for_user(user_id, access_token, refresh_token)
 
 
-def candidate_name_for_user(user_id: str, access_token: str | None, refresh_token: str | None) -> str | None:
-    """Candidate name from the authenticated user's own resume (server-side, user-scoped); None if not identifiable."""
-    for resume in get_resumes_for_user(user_id, access_token=access_token, refresh_token=refresh_token):
+def candidate_name_from_rows(resume_rows: list[dict[str, Any]]) -> str | None:
+    """Candidate name from the user's own resume rows; None if not identifiable."""
+    for resume in resume_rows:
         name = extract_candidate_name(str(resume.get("extracted_text") or ""))
         if name:
             return name
     return None
+
+
+def candidate_name_for_user(user_id: str, access_token: str | None, refresh_token: str | None) -> str | None:
+    """Candidate name from the authenticated user's own resume (server-side, user-scoped); None if not identifiable."""
+    return candidate_name_from_rows(get_resumes_for_user(user_id, access_token=access_token, refresh_token=refresh_token))
+
+
+def resume_facts_for(
+    resume_rows: list[dict[str, Any]],
+    job_description: str,
+    selected_anchor: dict[str, Any] | None,
+    previous_letters: list[tuple[str, str]],
+) -> str:
+    """Relevant resume lines for the letter prompt; "" (letter still generated) if selection fails. Logs counts only."""
+    try:
+        resume_text = "\n\n".join(str(row.get("extracted_text") or "") for row in resume_rows if row.get("extracted_text"))
+        facts = select_resume_facts(resume_text, job_description, selected_anchor, previous_letters)
+    except Exception as exc:
+        logging.getLogger(__name__).warning("resume facts selection failed (%s); continuing without them", type(exc).__name__)
+        return ""
+    logging.getLogger(__name__).info("resume facts: %d lines", len(facts.splitlines()))
+    return facts
 
 
 def profile_materials_fingerprint(resumes: list[dict[str, Any]], cover_letters: list[dict[str, Any]]) -> str:
@@ -1153,7 +1176,8 @@ def select_company_angle(
         ]
         if not previous_letters:
             raise ValueError("No previous cover-letter evidence is available for this user.")
-        candidate_name = letter_name_for(request, user_id, access_token, refresh_token)
+        resume_rows = get_resumes_for_user(user_id, access_token=access_token, refresh_token=refresh_token)
+        candidate_name = account_name(request) or candidate_name_from_rows(resume_rows)
 
         job_application_id = str(job_application["id"])
         existing_chain = get_generated_cover_letters_for_job(user_id, job_application_id, access_token=access_token, refresh_token=refresh_token)
@@ -1179,6 +1203,7 @@ def select_company_angle(
             previous_letters=previous_letters,
             company_url=company_url_value,
             candidate_name=candidate_name,
+            resume_facts=resume_facts_for(resume_rows, jd, anchors[selected_index], previous_letters),
         )
 
         saved_letter = save_generated_cover_letter(
@@ -1258,17 +1283,21 @@ def revise_cover_letter(request: Request, job_application_id: str = Form(...), f
         ]
         if not previous_letters:
             raise ValueError("No previous cover-letter evidence is available for this user.")
+        # One resume query, used for both the candidate's name and the resume facts.
+        resume_rows = get_resumes_for_user(user_id, access_token=access_token, refresh_token=refresh_token)
+        revision_job_description = str(job_application.get("job_description") or "")
 
         revised_letter = generate_cover_letter_revision(
             current_letter=str(current.get("content") or ""),
             user_feedback=feedback_text,
-            job_description=str(job_application.get("job_description") or ""),
+            job_description=revision_job_description,
             selected_anchors=[selected_anchor],
             style_profile=style_profile,
             previous_letters=previous_letters,
             company_url=str(job_application.get("company_url") or ""),
             feedback_history=[record["feedback"] for record in chain if record.get("feedback")],
-            candidate_name=letter_name_for(request, user_id, access_token, refresh_token),
+            candidate_name=account_name(request) or candidate_name_from_rows(resume_rows),
+            resume_facts=resume_facts_for(resume_rows, revision_job_description, selected_anchor, previous_letters),
         )
 
         new_revision_number = revision_number + 1

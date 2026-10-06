@@ -21,6 +21,11 @@ try:
 except ImportError:  # running as a script from inside src/
     import writing_framework
 
+try:
+    from src.resume_facts import format_resume_facts_section
+except ImportError:  # running as a script from inside src/
+    from resume_facts import format_resume_facts_section
+
 logger = logging.getLogger(__name__)
 
 
@@ -430,6 +435,7 @@ def build_cover_letter_prompt(
     plan: dict[str, Any],
 
     candidate_name: str | None = None,
+    resume_facts: str = "",
 ) -> str:
     """Assemble the final generation prompt using the structured cover-letter plan."""
     anchor_details: list[str] = []
@@ -471,6 +477,8 @@ def build_cover_letter_prompt(
         "- Do not artificially over-polish or repeat generic statements.\n"
     )
     identity_line, signoff_line = candidate_identity_lines(candidate_name)
+    resume_facts_section = format_resume_facts_section(resume_facts)
+    resume_facts_block = f"\n{resume_facts_section}" if resume_facts_section else ""  # "" keeps the prompt unchanged
 
     return f"""
 You are writing the final cover letter in the candidate's voice for a specific company and role.
@@ -499,7 +507,7 @@ Cover-letter plan:
 {plan_summary}
 
 Selected anchors:
-{''.join(anchor_details)}
+{''.join(anchor_details)}{resume_facts_block}
 
 Current job description:
 {job_description}
@@ -770,6 +778,7 @@ def build_cover_letter_revision_prompt(
     feedback_history: list[str] | None = None,
     constraints: dict[str, int | None] | None = None,
     candidate_name: str | None = None,
+    resume_facts: str = "",
 ) -> str:
     """Create a targeted revision prompt for the current cover letter."""
     anchor_details: list[str] = []
@@ -817,6 +826,8 @@ def build_cover_letter_revision_prompt(
     if requirement_lines:
         requirements_section = "\nHARD REQUIREMENTS FROM THE USER (mandatory for the whole letter):\n" + "\n".join(requirement_lines) + "\n"
     identity_line, signoff_line = candidate_identity_lines(candidate_name)
+    resume_facts_section = format_resume_facts_section(resume_facts)
+    resume_facts_block = f"\n{resume_facts_section}" if resume_facts_section else ""  # "" keeps the prompt unchanged
 
     return f"""
 Revise the CURRENT COVER LETTER according to the LATEST FEEDBACK.
@@ -845,7 +856,7 @@ JOB DESCRIPTION:
 {job_description}
 
 SELECTED COMPANY ANGLE:
-{''.join(anchor_details)}
+{''.join(anchor_details)}{resume_facts_block}
 
 CANDIDATE EVIDENCE:
 {''.join(evidence_sections)}
@@ -884,6 +895,7 @@ def generate_cover_letter_revision(
     company_url: str,
     feedback_history: list[str] | None = None,
     candidate_name: str | None = None,
+    resume_facts: str = "",
 ) -> str:
     """Generate a revised version of the current cover letter using the user's feedback."""
     load_environment()
@@ -912,6 +924,7 @@ def generate_cover_letter_revision(
             feedback_history=feedback_history,
             constraints=constraints,
             candidate_name=candidate_name,
+            resume_facts=resume_facts,
         )
 
         try:
@@ -988,12 +1001,16 @@ def generate_cover_letter(
     company_url: str,
 
     candidate_name: str | None = None,
+    resume_facts: str = "",
 ) -> str:
     """Generate the final cover letter through Groq."""
     load_environment()
     client, model_name = get_llm_client()
     plan = generate_cover_letter_plan(job_description, selected_anchors, style_profile, previous_letters, company_url, candidate_name=candidate_name)
-    base_prompt = build_cover_letter_prompt(job_description, selected_anchors, style_profile, previous_letters, company_url, plan, candidate_name=candidate_name)
+    base_prompt = build_cover_letter_prompt(
+        job_description, selected_anchors, style_profile, previous_letters, company_url, plan,
+        candidate_name=candidate_name, resume_facts=resume_facts,
+    )
     prompt = base_prompt
     
     max_attempts = 3
