@@ -44,7 +44,8 @@
                             <span class="evidence-match is-unmatched">Couldn't match this to the page. Check it before relying on it.</span>
                             {%- endif %}
                         </dd></div>{% endif %}
-                        {% if anchor.company_evidence_matched is defined and anchor.source_url is string and anchor.source_url.startswith('http') %}
+                        {# No link when the source is just the company URL the user typed. #}
+                        {% if anchor.company_evidence_matched is defined and anchor.source_url is string and anchor.source_url.startswith('http') and anchor.source_url.rstrip('/') != (company_url or '').rstrip('/') %}
                         <div><dt>Source</dt><dd><a class="evidence-source" href="{{ anchor.source_url }}" target="_blank" rel="noopener noreferrer">{{ anchor.source_url }}</a></dd></div>
                         {% endif %}
                         {% if anchor.job_connection %}<div><dt>Job connection</dt><dd>{{ anchor.job_connection }}</dd></div>{% endif %}

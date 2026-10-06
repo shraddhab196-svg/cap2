@@ -296,6 +296,7 @@ Instructions:
 - company_connection: a short, factual connection between the company and the role, drawing only from the current company/anchor context.
 - selected_angle: the actual selected human anchor title; do not invent a different angle.
 - hook: a short, evidence-backed hook sentence or short paragraph that explains why this role/company is relevant to the candidate based on actual work.
+- The opening should start with the selected job need from job_connection, then connect that need to the candidate's relevant evidence.
 - candidate_evidence: a list of 3 to 5 concrete evidence strings from the previous cover letters that support the selected angle and the role connection.
 - personal_connection: a brief statement explaining why this specific type of work is interesting to the candidate, grounded only in the candidate's work patterns and demonstrated preferences.
 - role_connection: a concise explanation of how the candidate's evidence connects to the role's major requirements.

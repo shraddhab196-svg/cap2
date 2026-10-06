@@ -50,6 +50,16 @@
                     </form>
                     {% endif %}
                 </article>
+                {% if send_checks %}
+                <section class="card card-pad send-checks" aria-labelledby="send-checks-title" style="margin-top:16px">
+                    <div class="eyebrow" id="send-checks-title">Check before sending</div>
+                    <ul class="note" style="margin:10px 0 0; padding-left:18px">
+                        {% for item in send_checks %}
+                        <li>{{ item }}</li>
+                        {% endfor %}
+                    </ul>
+                </section>
+                {% endif %}
             </div>
 
             <aside class="side rise" style="--i:3">
