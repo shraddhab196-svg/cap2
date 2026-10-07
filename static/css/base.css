@@ -450,6 +450,28 @@ textarea.input { min-height: 160px; resize: vertical; }
 @keyframes vt-out { to { opacity: 0; transform: translateY(-10px); filter: blur(3px); } }
 @keyframes vt-in { from { opacity: 0; transform: translateY(18px); filter: blur(3px); } }
 
+/* App steps: the header stays put, the red step dot glides to the next step, the page slides
+   (the other way when going back; the "back" type is set in base.html), the step number swaps. */
+.site-header { view-transition-name: site-header; }
+.journey-step.is-current .journey-dot { view-transition-name: journey-current; }
+main.page { view-transition-name: page; }
+/* The header swaps instantly (no cross-fade of the step labels); only the red dot travels. */
+::view-transition-old(site-header) { animation: none; opacity: 0; }
+::view-transition-new(site-header) { animation: none; }
+::view-transition-group(journey-current) { animation-duration: 750ms; animation-timing-function: var(--spring-soft); }
+::view-transition-old(page) { animation: page-out 380ms var(--ease-in-out) both; }
+::view-transition-new(page) { animation: page-in 760ms var(--ease-out) 60ms both; }
+html:active-view-transition-type(back)::view-transition-old(page) { animation-name: page-out-back; }
+html:active-view-transition-type(back)::view-transition-new(page) { animation-name: page-in-back; }
+::view-transition-old(step-num) { animation: num-out 420ms var(--ease-in-out) both; }
+::view-transition-new(step-num) { animation: num-in 1s var(--ease-out) 120ms both; }
+@keyframes page-out { to { opacity: 0; transform: translateX(-56px); filter: blur(6px); } }
+@keyframes page-in { from { opacity: 0; transform: translateX(72px); filter: blur(6px); } }
+@keyframes page-out-back { to { opacity: 0; transform: translateX(56px); filter: blur(6px); } }
+@keyframes page-in-back { from { opacity: 0; transform: translateX(-72px); filter: blur(6px); } }
+@keyframes num-out { to { opacity: 0; transform: translateY(-50px) rotate(-5deg); } }
+@keyframes num-in { from { opacity: 0; transform: translateY(70px) rotate(5deg); } }
+
 /* ---------- Reduced motion: everything lands in its final state ---------- */
 @media (prefers-reduced-motion: reduce) {
     *, *::before, *::after {

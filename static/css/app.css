@@ -699,3 +699,73 @@ html:not(.js) .js-only { display: none; }
 .letter-edit-actions { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; justify-content: flex-end; margin-top: 16px; }
 .letter-edit-actions .note { margin-right: auto; }
 .is-editing .letter-text, .is-editing .stamp, .is-editing [data-edit-letter] { display: none; }
+
+/* ==========================================================================
+   Motion layer: step numeral, headline reveal, card glow, ripples, field focus.
+   (Step-to-step page transitions live with the View Transition rules in base.css.)
+   ========================================================================== */
+
+/* Big outlined step number behind the page title. */
+.page[data-step-num] { position: relative; isolation: isolate; }
+.page[data-step-num]::before {
+    content: attr(data-step-num);
+    position: absolute;
+    top: clamp(4px, 2vw, 24px);
+    right: var(--gutter);
+    z-index: -1;
+    font-family: var(--f-display);
+    font-size: clamp(8rem, 22vw, 17rem);
+    font-style: italic;
+    font-weight: 300;
+    line-height: 0.8;
+    letter-spacing: -0.06em;
+    color: transparent;
+    -webkit-text-stroke: 1px var(--line-strong);
+    pointer-events: none;
+    view-transition-name: step-num;
+    animation: step-num-in 1.4s var(--ease-out) both;
+}
+@keyframes step-num-in { from { opacity: 0; transform: translateY(40px) rotate(4deg); } }
+@supports (animation-timeline: scroll()) {
+    /* Drifts slower than the page as you scroll. */
+    .page[data-step-num]::before {
+        animation: step-num-in 1.4s var(--ease-out) both, step-num-drift linear both;
+        animation-timeline: auto, scroll(root);
+        animation-range: normal, 0 700px;
+    }
+}
+@keyframes step-num-drift { to { translate: 0 160px; } }
+
+/* Page titles rise word by word from behind a mask (words are wrapped by app.js). */
+.split-word { display: inline-block; overflow: hidden; vertical-align: top; padding-bottom: 0.12em; margin-bottom: -0.12em; }
+.split-word > span { display: inline-block; animation: word-up 1.05s var(--ease-out) both; animation-delay: calc(var(--w) * 70ms + 100ms); }
+@keyframes word-up { from { transform: translateY(110%) rotate(5deg); } }
+
+/* A soft ink glow follows the pointer over cards. */
+@media (pointer: fine) {
+    .card:hover, .angle:hover, .dropzone:hover, .tips:hover {
+        background-image: radial-gradient(380px circle at var(--mx, 50%) var(--my, 50%), var(--pen-wash), transparent 65%);
+    }
+}
+
+/* Picking an angle: an ink ripple from the click, then the tick draws itself. */
+.angle { overflow: hidden; }
+.ripple {
+    position: absolute;
+    width: var(--d);
+    height: var(--d);
+    border-radius: 50%;
+    background: var(--pen);
+    opacity: 0.16;
+    pointer-events: none;
+    transform: translate(-50%, -50%) scale(0);
+    animation: ripple 750ms var(--ease-out) forwards;
+}
+@keyframes ripple { to { transform: translate(-50%, -50%) scale(1); opacity: 0; } }
+.angle-tick path { stroke-dasharray: 24; stroke-dashoffset: 24; transition: stroke-dashoffset 450ms var(--ease-out) 120ms; }
+.angle:has(.angle-radio:checked) .angle-tick path { stroke-dashoffset: 0; }
+
+/* Fields: the label inks up while you type. */
+.input { caret-color: var(--pen); }
+.field-label { transition: color var(--t-fast), translate var(--t-base) var(--spring-snappy); }
+.field:focus-within > .field-label { color: var(--pen); translate: 3px 0; }

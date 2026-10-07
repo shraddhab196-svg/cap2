@@ -343,4 +343,59 @@
             });
         });
     }
+
+    // --- Page titles rise word by word from behind a mask. Text stays real text for screen readers.
+    if (!reduceMotion) {
+        $$(".page-head h1").forEach((title) => {
+            let index = 0;
+            const wrapWords = (node) => {
+                Array.from(node.childNodes).forEach((child) => {
+                    if (child.nodeType === Node.ELEMENT_NODE) return wrapWords(child);
+                    if (child.nodeType !== Node.TEXT_NODE) return;
+                    const fragment = document.createDocumentFragment();
+                    child.data.split(/(\s+)/).forEach((part) => {
+                        if (!part) return;
+                        if (!part.trim()) return fragment.append(part);
+                        const outer = document.createElement("span");
+                        const inner = document.createElement("span");
+                        outer.className = "split-word";
+                        inner.textContent = part;
+                        inner.style.setProperty("--w", index++);
+                        outer.append(inner);
+                        fragment.append(outer);
+                    });
+                    child.replaceWith(fragment);
+                });
+            };
+            wrapWords(title);
+            title.classList.remove("rise");
+        });
+    }
+
+    if (finePointer && !reduceMotion) {
+        // --- A soft ink glow follows the pointer over cards.
+        document.addEventListener("pointermove", (event) => {
+            const card = event.target.closest(".card, .angle, .dropzone, .tips");
+            if (!card) return;
+            const rect = card.getBoundingClientRect();
+            card.style.setProperty("--mx", `${event.clientX - rect.left}px`);
+            card.style.setProperty("--my", `${event.clientY - rect.top}px`);
+        }, { passive: true });
+    }
+
+    // --- Picking an angle sends an ink ripple out from the click.
+    if (!reduceMotion) {
+        document.addEventListener("pointerdown", (event) => {
+            const angle = event.target.closest(".angle");
+            if (!angle) return;
+            const rect = angle.getBoundingClientRect();
+            const ripple = document.createElement("span");
+            ripple.className = "ripple";
+            ripple.style.left = `${event.clientX - rect.left}px`;
+            ripple.style.top = `${event.clientY - rect.top}px`;
+            ripple.style.setProperty("--d", `${Math.hypot(rect.width, rect.height) * 2}px`);
+            angle.append(ripple);
+            ripple.addEventListener("animationend", () => ripple.remove());
+        });
+    }
 })();

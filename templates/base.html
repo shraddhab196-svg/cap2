@@ -13,15 +13,30 @@
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght,SOFT@0,9..144,300..800,0..100;1,9..144,300..800,0..100&family=Instrument+Sans:wght@400..700&family=JetBrains+Mono:wght@400;500&display=swap" />
-    <link rel="stylesheet" href="{{ asset('css/base.css') }}?v=6" />
-    {% block styles %}<link rel="stylesheet" href="{{ asset('css/app.css') }}?v=8" />{% endblock %}
-    <script>document.documentElement.classList.add("js");</script>
+    <link rel="stylesheet" href="{{ asset('css/base.css') }}?v=7" />
+    {% block styles %}<link rel="stylesheet" href="{{ asset('css/app.css') }}?v=9" />{% endblock %}
+    <link rel="expect" href="#main" blocking="render" />
+    <script>
+        document.documentElement.classList.add("js");
+        // Moving to an earlier step (back button, or Profile from the menu) slides the page the other way.
+        // Must be registered before the first render, so it lives here rather than in app.js.
+        (function () {
+            var step = function () { var main = document.querySelector("main[data-step-num]"); return main ? Number(main.dataset.stepNum) : 0; };
+            addEventListener("pageswap", function () { try { sessionStorage.setItem("vt-step", step()); } catch (e) {} });
+            addEventListener("pagereveal", function (event) {
+                if (!event.viewTransition) return;
+                var from = 0;
+                try { from = Number(sessionStorage.getItem("vt-step")) || 0; } catch (e) {}
+                if (from && step() && step() < from) event.viewTransition.types.add("back");
+            });
+        })();
+    </script>
 </head>
 <body class="{% block body_class %}app{% endblock %}">
     <a class="skip-link" href="#main">Skip to content</a>
 {% block body %}
 {% include "partials/account_header.html" %}
-    <main id="main" class="page {% block page_class %}{% endblock %}">
+    <main id="main" class="page {% block page_class %}{% endblock %}"{% if journey_step is defined %} data-step-num="{{ '%02d' | format(journey_step) }}"{% endif %}>
 {% block content %}{% endblock %}
     </main>
 {% endblock %}
@@ -32,7 +47,7 @@
             <p class="ink-hint">This can take a moment · keep this tab open</p>
         </div>
     </div>
-    <script src="{{ asset('js/app.js') }}?v=7" defer></script>
+    <script src="{{ asset('js/app.js') }}?v=8" defer></script>
 {% block scripts %}{% endblock %}
 </body>
 </html>
