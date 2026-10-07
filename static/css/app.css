@@ -787,3 +787,14 @@ html:not(.js) .js-only { display: none; }
 .input { caret-color: var(--pen); }
 .field-label { transition: color var(--t-fast), translate var(--t-base) var(--spring-snappy); }
 .field:focus-within > .field-label { color: var(--pen); translate: 3px 0; }
+
+/* Segmented choice (letter language). The pill slides under the picked option. */
+.lang-choice { border: 0; margin: 0; padding: 0; min-width: 0; }
+.segmented { position: relative; display: inline-grid; grid-auto-flow: column; grid-auto-columns: 1fr; width: fit-content; padding: 4px; border: 1px solid var(--line-strong); border-radius: 999px; background: var(--paper-2); }
+.segment { position: relative; z-index: 1; cursor: pointer; }
+.segment input { position: absolute; opacity: 0; pointer-events: none; }
+.segment span { display: block; padding: 8px 18px; border-radius: 999px; font-size: 0.9rem; font-weight: 500; color: var(--ink-soft); text-align: center; transition: color var(--t-base) var(--ease-out), background var(--t-base) var(--ease-out), transform var(--t-base) var(--spring-snappy); }
+.segment:hover span { color: var(--ink); }
+.segment:active span { transform: scale(0.94); }
+.segment input:checked + span { background: var(--ink); color: var(--paper); box-shadow: var(--shadow-sm); }
+.segment input:focus-visible + span { outline: 2px solid var(--pen); outline-offset: 2px; }

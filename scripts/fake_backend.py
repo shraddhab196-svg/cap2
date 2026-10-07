@@ -33,6 +33,7 @@ from src.llm_client import LLMBusyError  # noqa: E402
 
 SAMPLE_ANCHORS = json.loads((ROOT / "tests" / "fixtures" / "sample_anchors.json").read_text(encoding="utf-8"))
 SAMPLE_LETTER = (ROOT / "tests" / "fixtures" / "sample_letter.txt").read_text(encoding="utf-8")
+SAMPLE_LETTER_DE = (ROOT / "tests" / "fixtures" / "sample_letter_de.txt").read_text(encoding="utf-8")
 
 
 def fakes(latency: float = 0.0) -> dict[str, Any]:
@@ -138,13 +139,13 @@ def fakes(latency: float = 0.0) -> dict[str, Any]:
         slow()
         return SAMPLE_ANCHORS
 
-    def generate_cover_letter(*, job_description, selected_anchors, **_):
+    def generate_cover_letter(*, job_description, selected_anchors, language="en", **_):
         slow()
         if "FAIL" in job_description:
             raise RuntimeError("Groq API is unavailable")
         if "BUSY" in job_description:
             raise LLMBusyError(detail="429 rate limit for organization org_FAKE")
-        return SAMPLE_LETTER
+        return SAMPLE_LETTER_DE if language == "de" else SAMPLE_LETTER
 
     def generate_cover_letter_revision(*, current_letter, user_feedback, **_):
         slow()

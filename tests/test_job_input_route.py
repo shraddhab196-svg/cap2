@@ -86,7 +86,7 @@ class JobInputRouteTests(unittest.TestCase):
         self.assertEqual(mock_research.call_count, 1)
         self.assertEqual(mock_generate.call_count, 1)
         self.assertEqual(self.mock_save_job.call_count, 1)
-        self.assertEqual(self.mock_save_job.call_args.kwargs["anchors"], [{"title": "Example anchor"}])
+        self.assertEqual(self.mock_save_job.call_args.kwargs["anchors"], [{"title": "Example anchor", "letter_language": "en"}])
         self.assertEqual(mock_letters.call_count, 1)
         self.assertEqual(mock_generate.call_args.kwargs["letters"], [("letter1.txt", "I led a project")])
 

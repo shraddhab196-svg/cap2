@@ -31,6 +31,11 @@ try:
 except ImportError:  # running as a script from inside src/
     from letter_checks import build_retry_note, fact_issues, style_issues
 
+try:
+    from src.language import detect_language
+except ImportError:  # running as a script from inside src/
+    from language import detect_language
+
 logger = logging.getLogger(__name__)
 
 
@@ -164,7 +169,8 @@ except ImportError:  # run as a script from src/
 # Closing lines a letter can end with ("Sincerely,", "Best regards,", "Thank you,").
 CLOSING_LINE = re.compile(
     r"^(?:yours\s+)?(?:sincerely|truly|faithfully|respectfully|cordially|cheers|best|regards|thanks|thank you|"
-    r"(?:best|kind|warm|warmest|kindest)\s+(?:regards|wishes)|with\s+(?:gratitude|appreciation|thanks|best wishes))[,.!]?$",
+    r"(?:best|kind|warm|warmest|kindest)\s+(?:regards|wishes)|with\s+(?:gratitude|appreciation|thanks|best wishes)|"
+    r"mit\s+(?:freundlichen|besten|herzlichen)\s+grüßen|(?:freundliche|beste|herzliche|viele|liebe)\s+grüße)[,.!]?$",
     re.IGNORECASE,
 )
 
@@ -205,7 +211,26 @@ def user_reason_line(anchor: dict[str, Any]) -> str:
     )
 
 
-def candidate_identity_lines(candidate_name: str | None) -> tuple[str, str]:
+# Added to the letter and revision prompts when the letter is German. Instructions stay in English (the model
+# follows them better); only the letter itself is German. The voice still comes from the candidate's own letters.
+GERMAN_LETTER_RULES = """LANGUAGE: GERMAN. Write the entire letter in German (Hochdeutsch), even though these instructions, the plan
+and the candidate's previous letters may be in English. Carry the candidate's voice (sentence rhythm, directness,
+warmth) over into natural German; do not translate English phrases word for word. These rules replace any English
+greeting or sign-off mentioned elsewhere:
+- Address the reader formally with "Sie" / "Ihr" / "Ihnen" (capitalised) throughout.
+- Salutation: if the job description names a contact person, "Sehr geehrte Frau <Nachname>," or "Sehr geehrter Herr <Nachname>,"; otherwise "Sehr geehrte Damen und Herren,". The first sentence after it starts with a lowercase letter unless it begins with a noun or a name.
+- Closing: "Mit freundlichen Grüßen" on its own line without a comma, then the name on the next line.
+- German business style: clear, factual, no exaggeration. Do not open with "Hiermit bewerbe ich mich", "Mit großem Interesse habe ich ...", "Ich bin leidenschaftlich" or similar stock openings. Avoid empty claims like "teamfähig", "hochmotiviert" or "belastbar" unless a concrete example backs them.
+- Keep company names, product names, technologies and job titles exactly as they appear in the sources.
+"""
+
+
+def language_section(language: str) -> str:
+    """Extra prompt rules for a non-English letter; "" (prompt unchanged) for English."""
+    return f"\n{GERMAN_LETTER_RULES}" if language == "de" else ""
+
+
+def candidate_identity_lines(candidate_name: str | None, language: str = "en") -> tuple[str, str]:
     """Return (identity line, sign-off rule) built only from the current user's own candidate name, if known."""
     if candidate_name:
         return (
@@ -214,7 +239,8 @@ def candidate_identity_lines(candidate_name: str | None) -> tuple[str, str]:
         )
     return (
         "Candidate identity: not provided. Do not invent or guess a name; use only the candidate's own supplied information.",
-        "End with 'Sincerely,' and do not add a name below it",
+        "End with 'Mit freundlichen Grüßen' and do not add a name below it" if language == "de"
+        else "End with 'Sincerely,' and do not add a name below it",
     )
 
 
@@ -442,6 +468,7 @@ def build_cover_letter_prompt(
 
     candidate_name: str | None = None,
     resume_facts: str = "",
+    language: str = "en",
 ) -> str:
     """Assemble the final generation prompt using the structured cover-letter plan."""
     anchor_details: list[str] = []
@@ -482,9 +509,10 @@ def build_cover_letter_prompt(
         "- The hook, personal connection, role relevance, and gap handling must all feel real and grounded in the evidence.\n"
         "- Do not artificially over-polish or repeat generic statements.\n"
     )
-    identity_line, signoff_line = candidate_identity_lines(candidate_name)
+    identity_line, signoff_line = candidate_identity_lines(candidate_name, language)
     resume_facts_section = format_resume_facts_section(resume_facts)
     resume_facts_block = f"\n{resume_facts_section}" if resume_facts_section else ""  # "" keeps the prompt unchanged
+    greeting_line = "Start with the German salutation described under LANGUAGE." if language == "de" else "Start with: Dear Hiring Manager,"
 
     return f"""
 You are writing the final cover letter in the candidate's voice for a specific company and role.
@@ -495,7 +523,7 @@ You are writing the final cover letter in the candidate's voice for a specific c
 You must follow the cover-letter plan exactly, but write the final prose naturally and coherently.
 
 Hard requirements:
-- Start with: Dear Hiring Manager,
+- {greeting_line}
 - Use the plan as the structure for the argument, but do not copy the plan verbatim.
 - It must feel specific to the actual company (identified by the Company URL and the selected anchor's company evidence below) and the actual role.
 - Use the selected anchor as a narrative thread, not a keyword list.
@@ -505,7 +533,7 @@ Hard requirements:
 - {signoff_line}
 - Preserve the candidate's established voice as described in the style profile.
 - Do not mention that you are following a plan or using a style profile.
-
+{language_section(language)}
 Style profile:
 {style_summary}
 
@@ -671,7 +699,8 @@ def is_effectively_unchanged(current_letter: str, revised_letter: str) -> bool:
 
 NUMBER_WORDS = {"one": 1, "two": 2, "three": 3, "four": 4, "five": 5, "six": 6, "seven": 7, "eight": 8, "nine": 9, "ten": 10}
 SIGN_OFF_PATTERN = re.compile(
-    r"^(sincerely|yours sincerely|yours faithfully|yours truly|best regards|kind regards|warm regards|regards|best|respectfully|thank you|thanks|with gratitude)\s*[,.!]?\s*$",
+    r"^(sincerely|yours sincerely|yours faithfully|yours truly|best regards|kind regards|warm regards|regards|best|respectfully|thank you|thanks|with gratitude|"
+    r"mit\s+(?:freundlichen|besten|herzlichen)\s+grüßen|(?:freundliche|beste|herzliche|viele|liebe)\s+grüße)\s*[,.!]?\s*$",
     re.IGNORECASE,
 )
 
@@ -699,7 +728,7 @@ def count_body_paragraphs(letter: str) -> int:
     """Count blank-line-separated paragraphs, excluding the greeting and the sign-off."""
     blocks = [block.strip() for block in re.split(r"\n\s*\n", letter.strip()) if block.strip()]
 
-    if blocks and blocks[0].lower().startswith("dear"):
+    if blocks and blocks[0].lower().startswith(("dear", "sehr geehrte", "liebe ", "lieber ", "hallo", "guten tag")):
         rest = "\n".join(blocks[0].splitlines()[1:]).strip()
         blocks = ([rest] if rest else []) + blocks[1:]
 
@@ -763,6 +792,7 @@ def build_cover_letter_revision_prompt(
     constraints: dict[str, int | None] | None = None,
     candidate_name: str | None = None,
     resume_facts: str = "",
+    language: str = "en",
 ) -> str:
     """Create a targeted revision prompt for the current cover letter."""
     anchor_details: list[str] = []
@@ -809,7 +839,7 @@ def build_cover_letter_revision_prompt(
     requirements_section = ""
     if requirement_lines:
         requirements_section = "\nHARD REQUIREMENTS FROM THE USER (mandatory for the whole letter):\n" + "\n".join(requirement_lines) + "\n"
-    identity_line, signoff_line = candidate_identity_lines(candidate_name)
+    identity_line, signoff_line = candidate_identity_lines(candidate_name, language)
     resume_facts_section = format_resume_facts_section(resume_facts)
     resume_facts_block = f"\n{resume_facts_section}" if resume_facts_section else ""  # "" keeps the prompt unchanged
 
@@ -865,7 +895,7 @@ Instructions:
     "cover_letter": "The revised cover letter text here..."
   }}
 
-{framework_section}
+{framework_section}{language_section(language)}
 """.strip()
 
 
@@ -909,6 +939,7 @@ def generate_cover_letter_revision(
             constraints=constraints,
             candidate_name=candidate_name,
             resume_facts=resume_facts,
+            language=detect_language(current_letter),  # a revision keeps the letter's language
         )
 
         try:
@@ -987,14 +1018,15 @@ def generate_cover_letter(
     candidate_name: str | None = None,
     resume_facts: str = "",
     source_texts: list[str] | None = None,
+    language: str = "en",
 ) -> str:
-    """Generate the final cover letter through Groq."""
+    """Generate the final cover letter through Groq ("de" writes it in German)."""
     load_environment()
     client, model_name = get_llm_client()
     plan = generate_cover_letter_plan(job_description, selected_anchors, style_profile, previous_letters, company_url, candidate_name=candidate_name)
     base_prompt = build_cover_letter_prompt(
         job_description, selected_anchors, style_profile, previous_letters, company_url, plan,
-        candidate_name=candidate_name, resume_facts=resume_facts,
+        candidate_name=candidate_name, resume_facts=resume_facts, language=language,
     )
     prompt = base_prompt
     

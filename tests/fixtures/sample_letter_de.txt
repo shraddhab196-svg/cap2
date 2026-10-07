@@ -1,0 +1,10 @@
+Sehr geehrte Damen und Herren,
+
+Ihre Ausschreibung sucht jemanden, der Alarme wieder verlässlich macht. Genau daran habe ich im letzten Jahr gearbeitet. In meinem Team meldete sich der Bereitschaftskanal bis zu vierzigmal pro Nacht, und kaum jemand reagierte noch. Ich habe die Monitoring-Pipeline auf Präzision umgebaut, die Schwellenwerte anhand eines Quartals gelabelter Vorfälle neu trainiert und die Fehlalarme um 30 % gesenkt. Danach wurde es ruhig im Kanal, und wenn er sich meldete, reagierten die Kolleginnen und Kollegen sofort.
+
+Deshalb hat mich Ihr Hinweis auf die Belastung durch Bereitschaftsalarme angesprochen. Ihr Forecasting-Team bringt jedes Quartal Modelle aus Notebooks in die Produktion, und jedes dieser Modelle braucht Alarme, denen man vertraut. Ich habe zwei Prototypen zur Anomalieerkennung aus dem Notebook in einen Docker-Service auf AWS überführt, mit Tests, Dashboards und einem Rollback-Plan. Ich weiß also, an welchen Stellen dieser Weg typischerweise hakt.
+
+Ich kenne auch die Arbeit in einem kleinen Team mit großer Verantwortung. Mit vier Engineers habe ich die Datenpipelines für drei Produkte betreut. Statt auf Heldentaten haben wir auf Dokumentation und automatisierte Prüfungen gesetzt und den Pager nur für echte Probleme genutzt. Gern bringe ich diese Arbeitsweise in Ihr Plattform-Team ein und erläutere Ihnen den Umbau des Monitorings in einem Gespräch genauer.
+
+Mit freundlichen Grüßen
+Jane Doe
