@@ -107,9 +107,10 @@ class GenerateAnchorsTests(unittest.TestCase):
         result, _ = self.run_generate(anchors)
         self.assertEqual([a["source_url"] for a in result["anchors"]], ["https://elsewhere.example/"] * 3)
 
-    def test_fewer_than_three_useful_anchors_still_fails(self):
-        with self.assertRaisesRegex(ValueError, "Fewer than 3 useful anchors"):
-            self.run_generate([anchor("Only", "x", ABOUT), anchor("Two", "y", ABOUT)], sources=SOURCES)
+    def test_fewer_than_three_useful_anchors_are_still_annotated(self):
+        result, _ = self.run_generate([anchor("Only", "x", ABOUT), anchor("Two", "y", ABOUT)], sources=SOURCES)
+        self.assertEqual([a["title"] for a in result["anchors"]], ["Only", "Two"])
+        self.assertTrue(all("company_evidence_matched" in a for a in result["anchors"]))
 
 
 class AnglesTemplateTests(unittest.TestCase):

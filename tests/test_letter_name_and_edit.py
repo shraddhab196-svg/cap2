@@ -20,6 +20,9 @@ def jwt() -> str:
     return f"h.{claims}.s"
 
 
+RESUMES = [{"id": "r1", "extracted_text": "Software Engineer\nJANE Q DOE\njane@x.com"}]
+
+
 class LetterNameTests(unittest.TestCase):
     def setUp(self):
         self.client = TestClient(app.app, follow_redirects=False)
@@ -28,7 +31,7 @@ class LetterNameTests(unittest.TestCase):
         self.addCleanup(stack.close)
         stack.enter_context(patch.object(app, "get_supabase_client", return_value=self.supabase))
         stack.enter_context(patch.object(app, "get_or_create_app_user", return_value={"id": USER["id"], "name": "jane"}))
-        stack.enter_context(patch.object(app, "get_resumes_for_user", return_value=[{"id": "r1", "extracted_text": "Software Engineer\nJANE Q DOE\njane@x.com"}]))
+        stack.enter_context(patch.object(app, "get_resumes_for_user", return_value=RESUMES))
         for name in ("get_cover_letters_for_user", "get_candidate_profile", "get_style_profile"):
             stack.enter_context(patch.object(app, name, return_value=[] if name == "get_cover_letters_for_user" else None))
         self.save_name = stack.enter_context(patch.object(app, "save_user_full_name"))
@@ -73,9 +76,17 @@ class LetterNameTests(unittest.TestCase):
     def test_letters_are_signed_with_the_account_name(self):
         self.login({"full_name": "Jane Doe"})
         request = SimpleNamespace(session={"auth_user": {"full_name": "Jane Doe"}})
-        self.assertEqual(app.letter_name_for(request, USER["id"], "t", "r"), "Jane Doe")
+        self.assertEqual(app.letter_name_for(request, RESUMES), "Jane Doe")
         request = SimpleNamespace(session={"auth_user": {}})
-        self.assertEqual(app.letter_name_for(request, USER["id"], "t", "r"), "Jane Q Doe")
+        self.assertEqual(app.letter_name_for(request, RESUMES), "Jane Q Doe")
+
+    def test_check_before_sending_accepts_the_account_name(self):
+        request = SimpleNamespace(session={"auth_user": {"full_name": "Janey Doe-Smith"}})
+        with patch.object(app, "get_request_session_tokens", return_value=("t", "r")), \
+             patch.object(app, "get_job_application", return_value={"job_description": "JD", "company_url": "https://x.example"}), \
+             patch.object(app, "get_cover_letters_for_user", return_value=[]):
+            sources = app.load_letter_source_texts(request, USER["id"], "j1")
+        self.assertIn("Janey Doe-Smith", sources)
 
 
 class EditLetterTests(unittest.TestCase):

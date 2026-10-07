@@ -77,16 +77,12 @@ class CompanyFallbackTests(unittest.TestCase):
         self.assertEqual(response.status_code, 303)
         self.assertEqual(self.research_sent(), "### Source: pasted by the user\nFernwick Labs is employee-owned and builds rota tools for clinics.")
 
-    def test_both_fail_shows_existing_error_and_keeps_fields(self):
+    def test_both_fail_still_moves_on_with_the_job_description(self):
         self.research.side_effect = ValueError(MAIN_ERROR)
         with patch.object(app, "fetch_company_html", side_effect=ValueError("nope")):
             response = self.submit(ALT_URL)
-        self.assertEqual(response.status_code, 200)
-        self.assertIn("We couldn&#39;t open that website", response.text)
-        self.assertIn(JD, response.text)
-        self.assertIn(f'value="{COMPANY}"', response.text)
-        self.assertIn(f">{ALT_URL}</textarea>", response.text)
-        self.generate.assert_not_called()
+        self.assertEqual(response.status_code, 303)
+        self.assertEqual(self.generate.call_args.kwargs["company_research"], app.NO_COMPANY_RESEARCH)
 
     def test_thin_research_sets_notice_shown_once(self):
         response = self.submit()

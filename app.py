@@ -31,7 +31,7 @@ from supabase_auth.helpers import generate_pkce_challenge, generate_pkce_verifie
 
 from src.anchor_generator import generate_anchors
 from src.company_researcher import cap_text, extract_company_text, fetch_company_html, research_company
-from src.cover_letter_generator import extract_candidate_name, generate_cover_letter, generate_cover_letter_revision
+from src.cover_letter_generator import generate_cover_letter, generate_cover_letter_revision
 from src.resume_facts import select_resume_facts
 from src.send_checks import send_check_items
 from src.database import (
@@ -390,9 +390,9 @@ def account_name(request: Request) -> str:
     return str((request.session.get("auth_user") or {}).get("full_name") or "").strip()
 
 
-def letter_name_for(request: Request, user_id: str, access_token: str | None, refresh_token: str | None) -> str | None:
+def letter_name_for(request: Request, resume_rows: list[dict[str, Any]]) -> str | None:
     """Name signed under every letter: the account name first (the user confirmed it), then the resume."""
-    return account_name(request) or candidate_name_for_user(user_id, access_token, refresh_token)
+    return account_name(request) or candidate_name_from_rows(resume_rows)
 
 
 def candidate_name_from_rows(resume_rows: list[dict[str, Any]]) -> str | None:
@@ -402,11 +402,6 @@ def candidate_name_from_rows(resume_rows: list[dict[str, Any]]) -> str | None:
         if name:
             return name
     return None
-
-
-def candidate_name_for_user(user_id: str, access_token: str | None, refresh_token: str | None) -> str | None:
-    """Candidate name from the authenticated user's own resume (server-side, user-scoped); None if not identifiable."""
-    return candidate_name_from_rows(get_resumes_for_user(user_id, access_token=access_token, refresh_token=refresh_token))
 
 
 def build_source_texts(
@@ -448,7 +443,7 @@ def load_letter_source_texts(request: Request, user_id: str, job_application_id:
             previous_letters,
             str(job_application.get("job_description") or ""),
             selected_anchor if isinstance(selected_anchor, dict) else {},
-            candidate_name_from_rows(resume_rows),
+            letter_name_for(request, resume_rows),
             str(job_application.get("company_url") or ""),
         )
     except Exception as exc:
@@ -1236,7 +1231,7 @@ def select_company_angle(
         if not previous_letters:
             raise ValueError("No previous cover-letter evidence is available for this user.")
         resume_rows = get_resumes_for_user(user_id, access_token=access_token, refresh_token=refresh_token)
-        candidate_name = account_name(request) or candidate_name_from_rows(resume_rows)
+        candidate_name = letter_name_for(request, resume_rows)
 
         job_application_id = str(job_application["id"])
         existing_chain = get_generated_cover_letters_for_job(user_id, job_application_id, access_token=access_token, refresh_token=refresh_token)
@@ -1351,7 +1346,7 @@ def revise_cover_letter(request: Request, job_application_id: str = Form(...), f
         resume_rows = get_resumes_for_user(user_id, access_token=access_token, refresh_token=refresh_token)
         revision_job_description = str(job_application.get("job_description") or "")
         revision_company_url = str(job_application.get("company_url") or "")
-        revision_candidate_name = account_name(request) or candidate_name_from_rows(resume_rows)
+        revision_candidate_name = letter_name_for(request, resume_rows)
 
         revised_letter = generate_cover_letter_revision(
             current_letter=str(current.get("content") or ""),
