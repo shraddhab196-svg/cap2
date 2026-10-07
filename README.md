@@ -96,6 +96,9 @@ Copy `.env.example` to `.env` and fill it in. `.env` is git-ignored; never commi
 | `SUPABASE_ANON_KEY` | yes | The project's public anon key (`SUPABASE_KEY` also works) |
 | `GROQ_API_KEY` | yes | Key for the default AI provider |
 | `GROQ_API_KEY_2` | no | Second Groq key, tried when the first is rate-limited. Groq limits are per account, so use a key from a different account |
+| `JINA_API_KEY` | no | When a company site blocks us or is JavaScript-only, Jina Reader reads it instead. Works without a key (rate-limited); a free key raises the limit |
+| `FIRECRAWL_API_KEY` | no | Second reader, tried when Jina fails. Skipped without a key (free plan: 1,000 pages a month) |
+| `COMPANY_RESEARCH_READERS` | no | `0` turns both readers off |
 | `GOOGLE_SIGN_IN` | no | `1` shows "Continue with Google" once the Google provider is set up in Supabase |
 | `SESSION_SECRET` | in production | Long random string that signs the login cookie. Without it, logins reset on every restart |
 | `APP_URL` | in production | Public https address. Makes the login cookie https-only and turns on HSTS |

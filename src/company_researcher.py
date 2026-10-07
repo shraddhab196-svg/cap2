@@ -180,13 +180,90 @@ def extra_pages_enabled() -> bool:
     return os.getenv("COMPANY_RESEARCH_EXTRA_PAGES", "1").strip() != "0"
 
 
+# Reader services open the page in a real browser, so they get through bot blocks and JavaScript-only sites.
+# Used only when our own fetch fails or finds less than this much text.
+READER_MIN_CHARS = 800
+READER_TIMEOUT_SECONDS = 20
+MARKDOWN_IMAGE = re.compile(r"!\[[^\]]*\]\([^)]*\)")
+MARKDOWN_LINK = re.compile(r"\[([^\]]*)\]\([^)]*\)")
+
+
+def readers_enabled() -> bool:
+    return os.getenv("COMPANY_RESEARCH_READERS", "1").strip() != "0"
+
+
+def read_with_jina(url: str) -> str:
+    """Jina Reader: works without a key (rate-limited); JINA_API_KEY raises the limit."""
+    headers = {"X-Return-Format": "text", "X-Retain-Images": "none", "X-Timeout": str(READER_TIMEOUT_SECONDS - 5)}
+    key = os.getenv("JINA_API_KEY", "").strip()
+    if key:
+        headers["Authorization"] = f"Bearer {key}"
+    response = requests.get(f"https://r.jina.ai/{url}", headers=headers, timeout=READER_TIMEOUT_SECONDS)
+    response.raise_for_status()
+    return response.text
+
+
+def read_with_firecrawl(url: str) -> str:
+    """Firecrawl scrape (needs FIRECRAWL_API_KEY; skipped without one)."""
+    key = os.getenv("FIRECRAWL_API_KEY", "").strip()
+    if not key:
+        return ""
+    response = requests.post(
+        "https://api.firecrawl.dev/v2/scrape",
+        json={"url": url, "formats": ["markdown"], "onlyMainContent": True, "timeout": (READER_TIMEOUT_SECONDS - 5) * 1000},
+        headers={"Authorization": f"Bearer {key}"},
+        timeout=READER_TIMEOUT_SECONDS,
+    )
+    response.raise_for_status()
+    return str((response.json().get("data") or {}).get("markdown") or "")
+
+
+READERS = (("jina", read_with_jina), ("firecrawl", read_with_firecrawl))
+
+
+def read_with_services(url: str) -> str:
+    """Page text from the reader services, in order; the longest text if none reaches READER_MIN_CHARS, "" if all fail."""
+    check_public_url(url)  # never hand a private address to an outside service
+    best = ""
+    for name, reader in READERS:
+        try:
+            text = reader(url)
+        except Exception as exc:
+            logger.warning("reader %s failed url=%s: %s", name, url, type(exc).__name__)
+            continue
+        text = re.sub(r"\n{3,}", "\n\n", MARKDOWN_LINK.sub(r"\1", MARKDOWN_IMAGE.sub("", text))).strip()
+        if len(text) > len(best):
+            best = text
+        if len(best) >= READER_MIN_CHARS:
+            logger.info("reader %s used url=%s chars=%d", name, url, len(best))
+            break
+    return best
+
+
 def research_company(company_url: str) -> dict[str, Any]:
-    """Fetch the company's main page plus up to two same-site about/news/careers pages, capped and labeled by source."""
-    html = fetch_company_html(company_url)
-    sections = [(company_url, cap_text(extract_company_text(company_url, html), MAIN_PAGE_MAX_CHARS))]
+    """Fetch the company's main page plus up to two same-site about/news/careers pages, capped and labeled by source.
+
+    When our own fetch fails or finds little text, the reader services try the main page instead.
+    """
+    html, main_text, main_error = None, "", None
+    try:
+        html = fetch_company_html(company_url)
+        main_text = extract_company_text(company_url, html)
+    except Exception as exc:
+        main_error = exc
+    if len(main_text) < READER_MIN_CHARS and readers_enabled():
+        try:
+            read_text = read_with_services(company_url)
+        except Exception:
+            read_text = ""  # e.g. not a public address: keep our own result and error
+        if len(read_text) > len(main_text):
+            main_text = read_text
+    if not main_text:
+        raise main_error or ValueError(f"No readable company content could be extracted from: {company_url}")
+    sections = [(company_url, cap_text(main_text, MAIN_PAGE_MAX_CHARS))]
 
     skipped = 0
-    if extra_pages_enabled():
+    if html and extra_pages_enabled():  # ponytail: no extra pages when only a reader got through; add if letters need them
         for url in find_extra_page_urls(company_url, html):
             try:
                 # fetch_company_html applies the public-address (SSRF) check to every hop.
