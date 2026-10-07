@@ -51,8 +51,36 @@
 
 /* Dark mode follows the system / browser setting. Declaring it also stops Brave and Chrome from
    force-darkening the page themselves. */
+/* Dark mode: the browser / system setting by default; the header switch can force either
+   (data-theme on <html>, set before first paint in base.html). */
+:root[data-theme="light"] { color-scheme: only light; } /* "only" also stops Brave / Chrome force-darkening */
+:root[data-theme="dark"] {
+    color-scheme: dark;
+    --paper: #161412;
+    --paper-2: #1F1C19;
+    --paper-3: #2A2622;
+    --card: #1D1A17;
+    --ink: #EDE6DA;
+    --ink-2: #DCD3C5;
+    --ink-soft: #A99F92;
+    --ink-faint: #7C746A;
+    --line: rgba(237, 230, 218, 0.12);
+    --line-strong: rgba(237, 230, 218, 0.26);
+    --pen: #E5583F;
+    --pen-deep: #F27C64;
+    --pen-wash: rgba(229, 88, 63, 0.16);
+    --ok: #5E9A6C;
+    --ok-wash: rgba(94, 154, 108, 0.18);
+    --sheet: #211E1A;
+    --sheet-hi: #28241F;
+    --glass: rgba(22, 20, 18, 0.8);
+    --panel: #25211D;
+    --on-panel: #EDE6DA;
+    --shadow-sm: 0 1px 0 rgba(0, 0, 0, 0.3), 0 2px 6px -2px rgba(0, 0, 0, 0.5);
+    --shadow-paper: 0 1px 1px rgba(0, 0, 0, 0.3), 0 14px 28px -14px rgba(0, 0, 0, 0.6), 0 48px 90px -48px rgba(0, 0, 0, 0.7);
+}
 @media (prefers-color-scheme: dark) {
-    :root {
+    :root:not([data-theme="light"]) {
         --paper: #161412;
         --paper-2: #1F1C19;
         --paper-3: #2A2622;
@@ -144,6 +172,18 @@ h1 { font-size: clamp(2.4rem, 5.5vw, 4.25rem); font-variation-settings: "SOFT" 5
 h2 { font-size: clamp(1.5rem, 2.6vw, 2rem); }
 h3 { font-size: 1.25rem; }
 .pen-dot { color: var(--pen); }
+/* Highlighter sweep over a key phrase in a lede; fills the line on hover. */
+.ink-mark {
+    color: var(--ink);
+    background: linear-gradient(color-mix(in srgb, var(--pen) 22%, transparent), color-mix(in srgb, var(--pen) 22%, transparent)) 0 88% / 0 40% no-repeat;
+    padding: 0 2px;
+    border-radius: 2px;
+    animation: ink-mark 900ms var(--ease-out) 1s forwards;
+    transition: background-size 420ms var(--ease-out);
+}
+.ink-mark + .ink-mark, .ink-mark ~ .ink-mark { animation-delay: 1.35s; }
+.ink-mark:hover { background-size: 100% 88% !important; }
+@keyframes ink-mark { to { background-size: 100% 40%; } }
 h1 em, h2 em { font-style: italic; color: var(--pen); font-variation-settings: "SOFT" 100; }
 p { margin: 0; text-wrap: pretty; }
 .lede { color: var(--ink-soft); font-size: clamp(1.02rem, 1.4vw, 1.15rem); max-width: 56ch; }
@@ -483,3 +523,37 @@ html:active-view-transition-type(back)::view-transition-new(page) { animation-na
     }
     @view-transition { navigation: none; }
 }
+
+/* ---------- Light / dark switch ---------- */
+.theme-toggle {
+    display: inline-grid;
+    place-items: center;
+    width: 38px;
+    height: 38px;
+    padding: 0;
+    flex: none;
+    border: 1px solid var(--line);
+    border-radius: 50%;
+    background: transparent;
+    color: var(--ink);
+    cursor: pointer;
+    transition: background var(--t-fast), border-color var(--t-fast), transform var(--t-base) var(--spring-snappy);
+}
+.theme-toggle:hover { background: var(--paper-2); border-color: var(--line-strong); }
+.theme-toggle:active { transform: scale(0.86); }
+.theme-toggle:focus-visible { outline: 2px solid var(--pen); outline-offset: 3px; }
+.theme-toggle svg { width: 18px; height: 18px; overflow: visible; }
+.theme-sun { fill: currentColor; r: 5px; transition: r 520ms var(--spring-snappy); }
+.theme-moon-cut { cx: 30px; cy: -6px; transition: cx 520ms var(--ease-out), cy 520ms var(--ease-out); }
+.theme-rays { fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; transform-origin: 12px 12px; transition: transform 640ms var(--spring-snappy), opacity 260ms; }
+:root[data-theme="dark"] .theme-sun { r: 8.5px; }
+:root[data-theme="dark"] .theme-moon-cut { cx: 17px; cy: 6px; }
+:root[data-theme="dark"] .theme-rays { opacity: 0; transform: rotate(-120deg) scale(0.4); }
+@media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) .theme-sun { r: 8.5px; }
+    :root:not([data-theme="light"]) .theme-moon-cut { cx: 17px; cy: 6px; }
+    :root:not([data-theme="light"]) .theme-rays { opacity: 0; transform: rotate(-120deg) scale(0.4); }
+}
+/* Switching themes: one circular wipe from the button, nothing else animates. */
+html.theme-switching *, html.theme-switching *::before { view-transition-name: none !important; }
+html.theme-switching::view-transition-old(root), html.theme-switching::view-transition-new(root) { animation: none; mix-blend-mode: normal; }

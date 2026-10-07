@@ -383,6 +383,51 @@
         }, { passive: true });
     }
 
+    // --- Light / dark switch. Remembers the choice; until then the browser setting decides.
+    const rootEl = document.documentElement;
+    const isDark = () => (rootEl.dataset.theme ? rootEl.dataset.theme === "dark" : matchMedia("(prefers-color-scheme: dark)").matches);
+    const themeButtons = $$("[data-theme-toggle]");
+    const labelThemeButtons = () => themeButtons.forEach((button) => {
+        button.setAttribute("aria-label", isDark() ? "Switch to light mode" : "Switch to dark mode");
+    });
+    labelThemeButtons();
+    themeButtons.forEach((button) => button.addEventListener("click", () => {
+        const next = isDark() ? "light" : "dark";
+        const apply = () => {
+            rootEl.dataset.theme = next;
+            try { localStorage.setItem("theme", next); } catch (error) { /* private mode: still switches for this page */ }
+            labelThemeButtons();
+        };
+        if (!document.startViewTransition || reduceMotion) return apply();
+        // The new theme spreads out in a circle from the button.
+        const rect = button.getBoundingClientRect();
+        const x = rect.left + rect.width / 2;
+        const y = rect.top + rect.height / 2;
+        const radius = Math.hypot(Math.max(x, innerWidth - x), Math.max(y, innerHeight - y));
+        rootEl.classList.add("theme-switching");
+        const transition = document.startViewTransition(apply);
+        transition.ready.then(() => rootEl.animate(
+            { clipPath: [`circle(0px at ${x}px ${y}px)`, `circle(${radius}px at ${x}px ${y}px)`] },
+            { duration: 750, easing: "cubic-bezier(0.65, 0, 0.35, 1)", pseudoElement: "::view-transition-new(root)" },
+        )).catch(() => {});
+        transition.finished.finally(() => rootEl.classList.remove("theme-switching"));
+    }));
+
+    // --- Step labels decode like a split-flap board on arrival (mono font, so nothing shifts).
+    if (!reduceMotion) {
+        const glyphs = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789/·";
+        $$(".page-head .eyebrow, .auth-form .eyebrow").forEach((label) => {
+            const text = label.textContent;
+            let frame = 0;
+            const tick = () => {
+                const shown = Math.floor(++frame / 2);
+                label.textContent = Array.from(text, (char, i) => (i < shown || char === " " ? char : glyphs[Math.floor(Math.random() * glyphs.length)])).join("");
+                if (shown < text.length) requestAnimationFrame(tick);
+            };
+            requestAnimationFrame(tick);
+        });
+    }
+
     // --- Picking an angle sends an ink ripple out from the click.
     if (!reduceMotion) {
         document.addEventListener("pointerdown", (event) => {

@@ -3,7 +3,10 @@
 {% block body %}
     <div class="auth">
         <div class="auth-side">
-            <a class="brand" href="/" aria-label="Cover Letter AI home"><span class="brand-mark" aria-hidden="true">c</span><span class="brand-name">Cover Letter AI</span></a>
+            <div class="auth-top">
+                <a class="brand" href="/" aria-label="Cover Letter AI home"><span class="brand-mark" aria-hidden="true">c</span><span class="brand-name">Cover Letter AI</span></a>
+                {% include "partials/theme_toggle.html" %}
+            </div>
             <main id="main" class="auth-form">
                 <div class="rise" style="--i:0">
                     <div class="eyebrow">{% block eyebrow %}{% endblock %}</div>
