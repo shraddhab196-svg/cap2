@@ -5,14 +5,16 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>{% block title %}Cover letters in your own voice{% endblock %} · Cover Letter AI</title>
     <meta name="description" content="Cover Letter AI learns how you write from your past letters, researches the company, and drafts a cover letter that sounds like you on your best day." />
-    <meta name="theme-color" content="#F4EFE6" />
+    <meta name="color-scheme" content="light dark" />
+    <meta name="theme-color" content="#F4EFE6" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#161412" media="(prefers-color-scheme: dark)" />
 {% block head %}{% endblock %}
     <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='16' fill='%231A1714'/%3E%3Ctext x='32' y='45' font-family='Georgia,serif' font-style='italic' font-size='38' text-anchor='middle' fill='%23F4EFE6'%3Ec%3C/text%3E%3Ccircle cx='47' cy='42' r='4' fill='%23D9432B'/%3E%3C/svg%3E" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght,SOFT@0,9..144,300..800,0..100;1,9..144,300..800,0..100&family=Instrument+Sans:wght@400..700&family=JetBrains+Mono:wght@400;500&display=swap" />
-    <link rel="stylesheet" href="{{ asset('css/base.css') }}?v=5" />
-    {% block styles %}<link rel="stylesheet" href="{{ asset('css/app.css') }}?v=7" />{% endblock %}
+    <link rel="stylesheet" href="{{ asset('css/base.css') }}?v=6" />
+    {% block styles %}<link rel="stylesheet" href="{{ asset('css/app.css') }}?v=8" />{% endblock %}
     <script>document.documentElement.classList.add("js");</script>
 </head>
 <body class="{% block body_class %}app{% endblock %}">

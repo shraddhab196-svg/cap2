@@ -19,6 +19,11 @@
     --pen-wash: rgba(217, 67, 43, 0.1);
     --ok: #3F6B4A;
     --ok-wash: rgba(63, 107, 74, 0.12);
+    --sheet: #FFFDF8;          /* letter paper */
+    --sheet-hi: #fff;          /* focused inputs, picked cards */
+    --glass: color-mix(in srgb, var(--on-panel) 80%, transparent);
+    --panel: #1A1714;          /* big dark panels; they stay dark in dark mode */
+    --on-panel: #F4EFE6;
 
     --f-display: "Fraunces", Georgia, "Times New Roman", serif;
     --f-ui: "Instrument Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
@@ -40,7 +45,37 @@
     --shadow-sm: 0 1px 0 rgba(26, 23, 20, 0.04), 0 2px 6px -2px rgba(26, 23, 20, 0.1);
     --shadow-paper: 0 1px 1px rgba(26, 23, 20, 0.04), 0 14px 28px -14px rgba(26, 23, 20, 0.22), 0 48px 90px -48px rgba(26, 23, 20, 0.3);
     --gutter: clamp(16px, 4vw, 48px);
+    color-scheme: light dark;
     --grain: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 .1 0 0 0 0 .09 0 0 0 0 .08 0 0 0 .5 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+
+/* Dark mode follows the system / browser setting. Declaring it also stops Brave and Chrome from
+   force-darkening the page themselves. */
+@media (prefers-color-scheme: dark) {
+    :root {
+        --paper: #161412;
+        --paper-2: #1F1C19;
+        --paper-3: #2A2622;
+        --card: #1D1A17;
+        --ink: #EDE6DA;
+        --ink-2: #DCD3C5;
+        --ink-soft: #A99F92;
+        --ink-faint: #7C746A;
+        --line: rgba(237, 230, 218, 0.12);
+        --line-strong: rgba(237, 230, 218, 0.26);
+        --pen: #E5583F;
+        --pen-deep: #F27C64;
+        --pen-wash: rgba(229, 88, 63, 0.16);
+        --ok: #5E9A6C;
+        --ok-wash: rgba(94, 154, 108, 0.18);
+        --sheet: #211E1A;
+        --sheet-hi: #28241F;
+        --glass: rgba(22, 20, 18, 0.8);
+        --panel: #25211D;
+        --on-panel: #EDE6DA;
+        --shadow-sm: 0 1px 0 rgba(0, 0, 0, 0.3), 0 2px 6px -2px rgba(0, 0, 0, 0.5);
+        --shadow-paper: 0 1px 1px rgba(0, 0, 0, 0.3), 0 14px 28px -14px rgba(0, 0, 0, 0.6), 0 48px 90px -48px rgba(0, 0, 0, 0.7);
+    }
 }
 
 /* ---------- Reset ---------- */
@@ -313,7 +348,7 @@ p { margin: 0; text-wrap: pretty; }
 }
 .input::placeholder { color: var(--ink-faint); }
 .input:hover { border-color: var(--ink-soft); }
-.input:focus { outline: none; border-color: var(--pen); background: #fff; box-shadow: 0 0 0 5px var(--pen-wash); }
+.input:focus { outline: none; border-color: var(--pen); background: var(--sheet-hi); box-shadow: 0 0 0 5px var(--pen-wash); }
 textarea.input { min-height: 160px; resize: vertical; }
 .input-wrap { position: relative; }
 .input-wrap .input { padding-right: 56px; }
@@ -358,8 +393,8 @@ textarea.input { min-height: 160px; resize: vertical; }
     display: grid;
     place-items: center;
     padding: var(--gutter);
-    background: var(--ink);
-    color: var(--paper);
+    background: var(--panel);
+    color: var(--on-panel);
     clip-path: circle(0% at var(--x, 50%) var(--y, 50%));
     visibility: hidden;
     transition: clip-path 900ms var(--ease-in-out), visibility 0s linear 900ms;
@@ -390,7 +425,7 @@ textarea.input { min-height: 160px; resize: vertical; }
     transition: opacity 360ms var(--ease-out), transform 360ms var(--ease-out), filter 360ms;
 }
 .ink-status.is-swapping { opacity: 0; transform: translateY(-10px); filter: blur(6px); }
-.ink-hint { font-family: var(--f-mono); font-size: 0.75rem; letter-spacing: 0.1em; text-transform: uppercase; color: rgba(244, 239, 230, 0.55); }
+.ink-hint { font-family: var(--f-mono); font-size: 0.75rem; letter-spacing: 0.1em; text-transform: uppercase; color: color-mix(in srgb, var(--on-panel) 55%, transparent); }
 
 /* ---------- Slow navigation bar (app.js shows it after 300 ms) ---------- */
 .nav-progress {
