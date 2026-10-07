@@ -33,6 +33,7 @@ from src.anchor_generator import generate_anchors
 from src.company_researcher import cap_text, extract_company_text, fetch_company_html, research_company
 from src.cover_letter_generator import generate_cover_letter, generate_cover_letter_revision
 from src.resume_facts import select_resume_facts
+from src.language import detect_language
 from src.send_checks import send_check_items
 from src.database import (
     delete_all_resumes_for_user,
@@ -1024,6 +1025,8 @@ def job_input_page(request: Request):
         return RedirectResponse(url="/login", status_code=303)
 
 
+LETTER_LANGUAGES = ("en", "de")
+
 NO_COMPANY_RESEARCH = (
     "The company website could not be read. For company evidence, use only what the job description says "
     "about the company, and do not invent any other company facts."
@@ -1037,6 +1040,7 @@ def submit_job_input(
     company_url: str = Form(...),
     company_extra: str = Form(""),
     user_reason: str = Form(""),
+    letter_language: str = Form("auto"),
 ):
     try:
         user = app_user_for_request(request)
@@ -1079,11 +1083,15 @@ def submit_job_input(
         )
         anchors = anchor_payload.get("anchors") if isinstance(anchor_payload, dict) else None
         reason = " ".join((user_reason or "").split())[:USER_REASON_MAX_CHARS]
-        if reason and isinstance(anchors, list):
-            # Travels with whichever angle is chosen (selected_anchor) into the letter and revision prompts.
+        # "auto" follows the job description's language.
+        language = letter_language if letter_language in LETTER_LANGUAGES else detect_language(jd)
+        if isinstance(anchors, list):
+            # Both travel with whichever angle is chosen (selected_anchor) into the letter prompt; no database change.
             for anchor in anchors:
                 if isinstance(anchor, dict):
-                    anchor["user_reason"] = reason
+                    anchor["letter_language"] = language
+                    if reason:
+                        anchor["user_reason"] = reason
         job_application = save_job_application(
             user_id,
             jd,
@@ -1108,6 +1116,7 @@ def submit_job_input(
                 "company_url": company_url or "",
                 "company_extra": company_extra or "",
                 "user_reason": user_reason or "",
+                "letter_language": letter_language,
                 "error": user_error(exc),
             })
         except HTTPException:
@@ -1122,6 +1131,7 @@ def submit_job_input(
                 "company_url": company_url or "",
                 "company_extra": company_extra or "",
                 "user_reason": user_reason or "",
+                "letter_language": letter_language,
                 "error": user_error(exc),
             })
         except HTTPException:
@@ -1263,6 +1273,7 @@ def select_company_angle(
             candidate_name=candidate_name,
             resume_facts=resume_facts_for(resume_rows, jd, anchors[selected_index], previous_letters),
             source_texts=source_texts,
+            language=str(selected_anchors[0].get("letter_language") or "en") if selected_anchors else "en",
         )
 
         saved_letter = save_generated_cover_letter(

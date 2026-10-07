@@ -7,6 +7,11 @@ from __future__ import annotations
 
 import re
 
+try:
+    from src.language import detect_language
+except ImportError:  # running as a script from inside src/
+    from language import detect_language
+
 MAX_NAMES_REPORTED = 5
 MAX_RETRY_ISSUES = 6
 MAX_RETRY_NOTE_CHARS = 600
@@ -31,10 +36,22 @@ STOCK_PHRASES = (
     "results-driven",
     "with my experience",
     "i believe i would be",
+    # German
+    "hiermit bewerbe ich mich",
+    "mit großem interesse",
+    "ich bin leidenschaftlich",
+    "teamfähig",
+    "hochmotiviert",
+    "belastbar",
+    "ideale kandidat",
+    "perfekte kandidat",
 )
 
-SIGN_OFFS = ("sincerely", "best regards", "kind regards", "regards", "mit freundlichen grüßen")
-GREETING = re.compile(r"^(dear|hello|hi|to whom)\b", re.IGNORECASE)
+SIGN_OFFS = (
+    "sincerely", "best regards", "kind regards", "regards",
+    "mit freundlichen grüßen", "mit besten grüßen", "freundliche grüße", "beste grüße", "viele grüße", "herzliche grüße",
+)
+GREETING = re.compile(r"^(dear|hello|hi|to whom|sehr geehrte|liebe|lieber|hallo|guten tag)\b", re.IGNORECASE)
 NAME_ALLOW_LIST = {
     "january", "february", "march", "april", "may", "june", "july", "august", "september", "october", "november",
     "december", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday",
@@ -96,7 +113,9 @@ def fact_issues(letter: str, source_texts: list[str]) -> list[str]:
             for number in _checked_numbers(letter)
             if number not in source_numbers
         ]
-        unknown = [name for name in _capitalized_names(letter) if not any(name.lower() in text for text in lowered_sources)]
+        # German capitalises every noun, so capitalised words aren't names there: only numbers are checked.
+        names = [] if detect_language(letter) == "de" else _capitalized_names(letter)
+        unknown = [name for name in names if not any(name.lower() in text for text in lowered_sources)]
         issues += [
             f'The letter mentions "{name}" which is not in the candidate\'s documents or the job description.'
             for name in unknown[:MAX_NAMES_REPORTED]

@@ -36,6 +36,17 @@
                     <input class="input" id="user_reason" name="user_reason" type="text" maxlength="300" value="{{ user_reason or '' }}" aria-describedby="user_reason_hint" />
                 </div>
 
+                <fieldset class="field lang-choice">
+                    <legend class="field-label">Letter language</legend>
+                    <div class="segmented" role="radiogroup">
+                        {% set chosen = letter_language or 'auto' %}
+                        {% for value, label in [('auto', 'Auto'), ('en', 'English'), ('de', 'Deutsch')] %}
+                        <label class="segment"><input type="radio" name="letter_language" value="{{ value }}"{% if chosen == value %} checked{% endif %} /><span>{{ label }}</span></label>
+                        {% endfor %}
+                    </div>
+                    <span class="field-hint">Auto writes in the job description's language.</span>
+                </fieldset>
+
                 <div class="actions">
                     <button type="submit" class="btn" data-magnetic>Continue</button>
                 </div>
