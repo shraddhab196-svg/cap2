@@ -56,8 +56,8 @@ docs/                   design specs
 ## Quick start (no keys needed)
 
 ```bash
-git clone https://github.com/shraddhab196-svg/cap2.git
-cd cap2
+git clone https://github.com/shraddhab196-svg/cover-letter-ai.git
+cd cover-letter-ai
 python -m venv .venv
 .venv/Scripts/activate        # macOS/Linux: source .venv/bin/activate
 pip install -r requirements.txt
