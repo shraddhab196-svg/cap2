@@ -225,6 +225,23 @@ greeting or sign-off mentioned elsewhere:
 """
 
 
+# Shortest credible letter, by language: German says the same in fewer, longer words.
+MIN_LETTER_WORDS = {"en": 200, "de": 170}
+# On the last attempt a slightly short letter beats an error page.
+LAST_ATTEMPT_MIN_WORDS = 120
+
+
+def min_letter_words(language: str) -> int:
+    return MIN_LETTER_WORDS.get(language, MIN_LETTER_WORDS["en"])
+
+
+def short_letter_note(words: int, min_words: int) -> str:
+    return (
+        f"IMPORTANT: The previous draft had only {words} words, which is too short. Write a complete letter of "
+        f"{min_words + 40} to {writing_framework.MAX_WORDS} words with three full body paragraphs."
+    )
+
+
 def language_section(language: str) -> str:
     """Extra prompt rules for a non-English letter; "" (prompt unchanged) for English."""
     return f"\n{GERMAN_LETTER_RULES}" if language == "de" else ""
@@ -918,7 +935,8 @@ def generate_cover_letter_revision(
     constraints = writing_framework.cap_feedback_constraints(extract_feedback_constraints(user_feedback, feedback_history))
     requested_words = constraints["words"]
     # Let an explicitly requested short letter pass the generic 200-word floor, and leave room for long requests.
-    min_words = min(200, int(requested_words * 0.9)) if requested_words else 200
+    floor = min_letter_words(detect_language(current_letter))
+    min_words = min(floor, int(requested_words * 0.9)) if requested_words else floor
     max_tokens = max(1200, requested_words * 2 + 300) if requested_words else 1200
 
     max_attempts = 3
@@ -975,7 +993,15 @@ def generate_cover_letter_revision(
             raise ValueError("Groq response did not include a cover_letter field for the revision.")
 
         revised_letter = apply_signature(str(payload["cover_letter"]).strip(), candidate_name)
-        validate_generated_letter(revised_letter, selected_anchors, job_description, min_words=min_words, candidate_name=candidate_name)
+        words = len(revised_letter.split())
+        if words < min_words and attempt < max_attempts:
+            logger.warning("revision too short (%d words, minimum %d); retrying", words, min_words)
+            retry_context = short_letter_note(words, min_words)
+            continue
+        validate_generated_letter(
+            revised_letter, selected_anchors, job_description, candidate_name=candidate_name,
+            min_words=min_words if attempt < max_attempts else min(min_words, LAST_ATTEMPT_MIN_WORDS),
+        )
 
         if is_effectively_unchanged(current_letter, revised_letter):
             if attempt < max_attempts:
@@ -1059,7 +1085,16 @@ def generate_cover_letter(
             raise ValueError("Groq response did not include a cover_letter field.")
 
         letter = apply_signature(str(payload["cover_letter"]).strip(), candidate_name)
-        validate_generated_letter(letter, selected_anchors, job_description, candidate_name=candidate_name)
+        min_words = min_letter_words(language)
+        words = len(letter.split())
+        if words < min_words and attempt < max_attempts:
+            logger.warning("letter too short (%d words, minimum %d); retrying", words, min_words)
+            prompt = f"{base_prompt}\n\n{short_letter_note(words, min_words)}"
+            continue
+        validate_generated_letter(
+            letter, selected_anchors, job_description, candidate_name=candidate_name,
+            min_words=min_words if attempt < max_attempts else LAST_ATTEMPT_MIN_WORDS,
+        )
 
         # writing framework: the complete letter must stay within the word limit.
         framework_problem = writing_framework.word_limit_problem(letter)
