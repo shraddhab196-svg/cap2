@@ -12,6 +12,14 @@ Cover letters in your own voice. Upload your resume and a few letters you've wri
 
 **Website:** - https://cap2-hi8u.onrender.com/
 
+## See it in 70 seconds
+
+<p align="center">
+  <a href="docs/media/demo-reel.mp4"><img src="docs/media/demo-teaser.gif" alt="Demo reel: the four steps, from blank page to a signed letter." width="640" /></a>
+</p>
+
+[Watch the full demo reel (MP4, 70 s, with music)](docs/media/demo-reel.mp4). Every app screen in it is the real app running on test data with a fictional candidate.
+
 ## How it works
 
 1. **Teach it your voice.** Upload your resume and one to five past cover letters. It builds a style profile (tone, rhythm, habits) and a summary of your experience.
