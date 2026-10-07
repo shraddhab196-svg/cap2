@@ -4,7 +4,7 @@
 {% set done_count = (1 if status.has_resume else 0) + (1 if letters_ok else 0) + (1 if status.is_current else 0) %}
 {% block title %}Profile setup{% endblock %}
 
-{% macro doc_icon() %}<svg class="file-doc" viewBox="0 0 30 36" aria-hidden="true"><path d="M3 1.5h17l8.5 8.5v24a.5.5 0 0 1-.5.5H3a.5.5 0 0 1-.5-.5V2a.5.5 0 0 1 .5-.5z" fill="#FFFDF8" stroke="#1A1714" stroke-opacity=".35"/><path d="M20 1.5V10h8.5" fill="none" stroke="#1A1714" stroke-opacity=".35"/><path d="M7 16h15M7 20.5h15M7 25h10" stroke="#D9432B" stroke-opacity=".55" stroke-linecap="round"/></svg>{% endmacro %}
+{% macro doc_icon() %}<svg class="file-doc" viewBox="0 0 30 36" aria-hidden="true"><path d="M3 1.5h17l8.5 8.5v24a.5.5 0 0 1-.5.5H3a.5.5 0 0 1-.5-.5V2a.5.5 0 0 1 .5-.5z" style="fill:var(--sheet);stroke:var(--ink)" stroke-opacity=".35"/><path d="M20 1.5V10h8.5" fill="none" style="stroke:var(--ink)" stroke-opacity=".35"/><path d="M7 16h15M7 20.5h15M7 25h10" stroke="#D9432B" stroke-opacity=".55" stroke-linecap="round"/></svg>{% endmacro %}
 {% macro delete_icon() %}<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 12a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-12M9 7V4h6v3"/></svg>{% endmacro %}
 {% macro ok_icon() %}<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>{% endmacro %}
 
@@ -12,7 +12,7 @@
         <div class="page-head">
             <div class="eyebrow rise" style="--i:0">Step 01 · Your voice</div>
             <h1 class="rise" style="--i:1">Build your <em>profile</em></h1>
-            <p class="lede rise" style="--i:2">Prepare your profile once for future applications. Your resume tells us what you've done; your past letters tell us how you sound.</p>
+            <p class="lede rise" style="--i:2">Do this once. Your resume tells us <mark class="ink-mark">what you've done</mark>; your past letters tell us <mark class="ink-mark">how you sound</mark>.</p>
         </div>
 
         {% if notice %}

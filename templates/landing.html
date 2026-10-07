@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 {% block title %}Cover letters in your own voice{% endblock %}
-{% block styles %}<link rel="stylesheet" href="{{ asset('css/landing.css') }}?v=2" />{% endblock %}
+{% block styles %}<link rel="stylesheet" href="{{ asset('css/landing.css') }}?v=3" />{% endblock %}
 {% block body_class %}landing{% endblock %}
 {% set start_href = url("/profile/setup") if user else url("/signup") %}
 {% block head %}
@@ -29,6 +29,7 @@
         <nav class="nav-links" aria-label="Main">
             <a class="nav-link" href="#how">How it works</a>
             <a class="nav-link" href="#faq">FAQ</a>
+            {% include "partials/theme_toggle.html" %}
             {% if user %}
             <a class="btn btn-sm" href="{{ url('/profile/setup') }}" data-magnetic>Open the app</a>
             {% else %}

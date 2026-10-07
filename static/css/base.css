@@ -19,6 +19,11 @@
     --pen-wash: rgba(217, 67, 43, 0.1);
     --ok: #3F6B4A;
     --ok-wash: rgba(63, 107, 74, 0.12);
+    --sheet: #FFFDF8;          /* letter paper */
+    --sheet-hi: #fff;          /* focused inputs, picked cards */
+    --glass: color-mix(in srgb, var(--on-panel) 80%, transparent);
+    --panel: #1A1714;          /* big dark panels; they stay dark in dark mode */
+    --on-panel: #F4EFE6;
 
     --f-display: "Fraunces", Georgia, "Times New Roman", serif;
     --f-ui: "Instrument Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
@@ -40,7 +45,65 @@
     --shadow-sm: 0 1px 0 rgba(26, 23, 20, 0.04), 0 2px 6px -2px rgba(26, 23, 20, 0.1);
     --shadow-paper: 0 1px 1px rgba(26, 23, 20, 0.04), 0 14px 28px -14px rgba(26, 23, 20, 0.22), 0 48px 90px -48px rgba(26, 23, 20, 0.3);
     --gutter: clamp(16px, 4vw, 48px);
+    color-scheme: light dark;
     --grain: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 .1 0 0 0 0 .09 0 0 0 0 .08 0 0 0 .5 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+
+/* Dark mode follows the system / browser setting. Declaring it also stops Brave and Chrome from
+   force-darkening the page themselves. */
+/* Dark mode: the browser / system setting by default; the header switch can force either
+   (data-theme on <html>, set before first paint in base.html). */
+:root[data-theme="light"] { color-scheme: only light; } /* "only" also stops Brave / Chrome force-darkening */
+:root[data-theme="dark"] {
+    color-scheme: dark;
+    --paper: #161412;
+    --paper-2: #1F1C19;
+    --paper-3: #2A2622;
+    --card: #1D1A17;
+    --ink: #EDE6DA;
+    --ink-2: #DCD3C5;
+    --ink-soft: #A99F92;
+    --ink-faint: #7C746A;
+    --line: rgba(237, 230, 218, 0.12);
+    --line-strong: rgba(237, 230, 218, 0.26);
+    --pen: #E5583F;
+    --pen-deep: #F27C64;
+    --pen-wash: rgba(229, 88, 63, 0.16);
+    --ok: #5E9A6C;
+    --ok-wash: rgba(94, 154, 108, 0.18);
+    --sheet: #211E1A;
+    --sheet-hi: #28241F;
+    --glass: rgba(22, 20, 18, 0.8);
+    --panel: #25211D;
+    --on-panel: #EDE6DA;
+    --shadow-sm: 0 1px 0 rgba(0, 0, 0, 0.3), 0 2px 6px -2px rgba(0, 0, 0, 0.5);
+    --shadow-paper: 0 1px 1px rgba(0, 0, 0, 0.3), 0 14px 28px -14px rgba(0, 0, 0, 0.6), 0 48px 90px -48px rgba(0, 0, 0, 0.7);
+}
+@media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+        --paper: #161412;
+        --paper-2: #1F1C19;
+        --paper-3: #2A2622;
+        --card: #1D1A17;
+        --ink: #EDE6DA;
+        --ink-2: #DCD3C5;
+        --ink-soft: #A99F92;
+        --ink-faint: #7C746A;
+        --line: rgba(237, 230, 218, 0.12);
+        --line-strong: rgba(237, 230, 218, 0.26);
+        --pen: #E5583F;
+        --pen-deep: #F27C64;
+        --pen-wash: rgba(229, 88, 63, 0.16);
+        --ok: #5E9A6C;
+        --ok-wash: rgba(94, 154, 108, 0.18);
+        --sheet: #211E1A;
+        --sheet-hi: #28241F;
+        --glass: rgba(22, 20, 18, 0.8);
+        --panel: #25211D;
+        --on-panel: #EDE6DA;
+        --shadow-sm: 0 1px 0 rgba(0, 0, 0, 0.3), 0 2px 6px -2px rgba(0, 0, 0, 0.5);
+        --shadow-paper: 0 1px 1px rgba(0, 0, 0, 0.3), 0 14px 28px -14px rgba(0, 0, 0, 0.6), 0 48px 90px -48px rgba(0, 0, 0, 0.7);
+    }
 }
 
 /* ---------- Reset ---------- */
@@ -109,6 +172,18 @@ h1 { font-size: clamp(2.4rem, 5.5vw, 4.25rem); font-variation-settings: "SOFT" 5
 h2 { font-size: clamp(1.5rem, 2.6vw, 2rem); }
 h3 { font-size: 1.25rem; }
 .pen-dot { color: var(--pen); }
+/* Highlighter sweep over a key phrase in a lede; fills the line on hover. */
+.ink-mark {
+    color: var(--ink);
+    background: linear-gradient(color-mix(in srgb, var(--pen) 22%, transparent), color-mix(in srgb, var(--pen) 22%, transparent)) 0 88% / 0 40% no-repeat;
+    padding: 0 2px;
+    border-radius: 2px;
+    animation: ink-mark 900ms var(--ease-out) 1s forwards;
+    transition: background-size 420ms var(--ease-out);
+}
+.ink-mark + .ink-mark, .ink-mark ~ .ink-mark { animation-delay: 1.35s; }
+.ink-mark:hover { background-size: 100% 88% !important; }
+@keyframes ink-mark { to { background-size: 100% 40%; } }
 h1 em, h2 em { font-style: italic; color: var(--pen); font-variation-settings: "SOFT" 100; }
 p { margin: 0; text-wrap: pretty; }
 .lede { color: var(--ink-soft); font-size: clamp(1.02rem, 1.4vw, 1.15rem); max-width: 56ch; }
@@ -313,7 +388,7 @@ p { margin: 0; text-wrap: pretty; }
 }
 .input::placeholder { color: var(--ink-faint); }
 .input:hover { border-color: var(--ink-soft); }
-.input:focus { outline: none; border-color: var(--pen); background: #fff; box-shadow: 0 0 0 5px var(--pen-wash); }
+.input:focus { outline: none; border-color: var(--pen); background: var(--sheet-hi); box-shadow: 0 0 0 5px var(--pen-wash); }
 textarea.input { min-height: 160px; resize: vertical; }
 .input-wrap { position: relative; }
 .input-wrap .input { padding-right: 56px; }
@@ -358,8 +433,8 @@ textarea.input { min-height: 160px; resize: vertical; }
     display: grid;
     place-items: center;
     padding: var(--gutter);
-    background: var(--ink);
-    color: var(--paper);
+    background: var(--panel);
+    color: var(--on-panel);
     clip-path: circle(0% at var(--x, 50%) var(--y, 50%));
     visibility: hidden;
     transition: clip-path 900ms var(--ease-in-out), visibility 0s linear 900ms;
@@ -390,7 +465,7 @@ textarea.input { min-height: 160px; resize: vertical; }
     transition: opacity 360ms var(--ease-out), transform 360ms var(--ease-out), filter 360ms;
 }
 .ink-status.is-swapping { opacity: 0; transform: translateY(-10px); filter: blur(6px); }
-.ink-hint { font-family: var(--f-mono); font-size: 0.75rem; letter-spacing: 0.1em; text-transform: uppercase; color: rgba(244, 239, 230, 0.55); }
+.ink-hint { font-family: var(--f-mono); font-size: 0.75rem; letter-spacing: 0.1em; text-transform: uppercase; color: color-mix(in srgb, var(--on-panel) 55%, transparent); }
 
 /* ---------- Slow navigation bar (app.js shows it after 300 ms) ---------- */
 .nav-progress {
@@ -415,6 +490,28 @@ textarea.input { min-height: 160px; resize: vertical; }
 @keyframes vt-out { to { opacity: 0; transform: translateY(-10px); filter: blur(3px); } }
 @keyframes vt-in { from { opacity: 0; transform: translateY(18px); filter: blur(3px); } }
 
+/* App steps: the header stays put, the red step dot glides to the next step, the page slides
+   (the other way when going back; the "back" type is set in base.html), the step number swaps. */
+.site-header { view-transition-name: site-header; }
+.journey-step.is-current .journey-dot { view-transition-name: journey-current; }
+main.page { view-transition-name: page; }
+/* The header swaps instantly (no cross-fade of the step labels); only the red dot travels. */
+::view-transition-old(site-header) { animation: none; opacity: 0; }
+::view-transition-new(site-header) { animation: none; }
+::view-transition-group(journey-current) { animation-duration: 750ms; animation-timing-function: var(--spring-soft); }
+::view-transition-old(page) { animation: page-out 380ms var(--ease-in-out) both; }
+::view-transition-new(page) { animation: page-in 760ms var(--ease-out) 60ms both; }
+html:active-view-transition-type(back)::view-transition-old(page) { animation-name: page-out-back; }
+html:active-view-transition-type(back)::view-transition-new(page) { animation-name: page-in-back; }
+::view-transition-old(step-num) { animation: num-out 420ms var(--ease-in-out) both; }
+::view-transition-new(step-num) { animation: num-in 1s var(--ease-out) 120ms both; }
+@keyframes page-out { to { opacity: 0; transform: translateX(-56px); filter: blur(6px); } }
+@keyframes page-in { from { opacity: 0; transform: translateX(72px); filter: blur(6px); } }
+@keyframes page-out-back { to { opacity: 0; transform: translateX(56px); filter: blur(6px); } }
+@keyframes page-in-back { from { opacity: 0; transform: translateX(-72px); filter: blur(6px); } }
+@keyframes num-out { to { opacity: 0; transform: translateY(-50px) rotate(-5deg); } }
+@keyframes num-in { from { opacity: 0; transform: translateY(70px) rotate(5deg); } }
+
 /* ---------- Reduced motion: everything lands in its final state ---------- */
 @media (prefers-reduced-motion: reduce) {
     *, *::before, *::after {
@@ -426,3 +523,37 @@ textarea.input { min-height: 160px; resize: vertical; }
     }
     @view-transition { navigation: none; }
 }
+
+/* ---------- Light / dark switch ---------- */
+.theme-toggle {
+    display: inline-grid;
+    place-items: center;
+    width: 38px;
+    height: 38px;
+    padding: 0;
+    flex: none;
+    border: 1px solid var(--line);
+    border-radius: 50%;
+    background: transparent;
+    color: var(--ink);
+    cursor: pointer;
+    transition: background var(--t-fast), border-color var(--t-fast), transform var(--t-base) var(--spring-snappy);
+}
+.theme-toggle:hover { background: var(--paper-2); border-color: var(--line-strong); }
+.theme-toggle:active { transform: scale(0.86); }
+.theme-toggle:focus-visible { outline: 2px solid var(--pen); outline-offset: 3px; }
+.theme-toggle svg { width: 18px; height: 18px; overflow: visible; }
+.theme-sun { fill: currentColor; r: 5px; transition: r 520ms var(--spring-snappy); }
+.theme-moon-cut { cx: 30px; cy: -6px; transition: cx 520ms var(--ease-out), cy 520ms var(--ease-out); }
+.theme-rays { fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; transform-origin: 12px 12px; transition: transform 640ms var(--spring-snappy), opacity 260ms; }
+:root[data-theme="dark"] .theme-sun { r: 8.5px; }
+:root[data-theme="dark"] .theme-moon-cut { cx: 17px; cy: 6px; }
+:root[data-theme="dark"] .theme-rays { opacity: 0; transform: rotate(-120deg) scale(0.4); }
+@media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) .theme-sun { r: 8.5px; }
+    :root:not([data-theme="light"]) .theme-moon-cut { cx: 17px; cy: 6px; }
+    :root:not([data-theme="light"]) .theme-rays { opacity: 0; transform: rotate(-120deg) scale(0.4); }
+}
+/* Switching themes: one circular wipe from the button, nothing else animates. */
+html.theme-switching *, html.theme-switching *::before { view-transition-name: none !important; }
+html.theme-switching::view-transition-old(root), html.theme-switching::view-transition-new(root) { animation: none; mix-blend-mode: normal; }

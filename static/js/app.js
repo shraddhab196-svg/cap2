@@ -343,4 +343,104 @@
             });
         });
     }
+
+    // --- Page titles rise word by word from behind a mask. Text stays real text for screen readers.
+    if (!reduceMotion) {
+        $$(".page-head h1").forEach((title) => {
+            let index = 0;
+            const wrapWords = (node) => {
+                Array.from(node.childNodes).forEach((child) => {
+                    if (child.nodeType === Node.ELEMENT_NODE) return wrapWords(child);
+                    if (child.nodeType !== Node.TEXT_NODE) return;
+                    const fragment = document.createDocumentFragment();
+                    child.data.split(/(\s+)/).forEach((part) => {
+                        if (!part) return;
+                        if (!part.trim()) return fragment.append(part);
+                        const outer = document.createElement("span");
+                        const inner = document.createElement("span");
+                        outer.className = "split-word";
+                        inner.textContent = part;
+                        inner.style.setProperty("--w", index++);
+                        outer.append(inner);
+                        fragment.append(outer);
+                    });
+                    child.replaceWith(fragment);
+                });
+            };
+            wrapWords(title);
+            title.classList.remove("rise");
+        });
+    }
+
+    if (finePointer && !reduceMotion) {
+        // --- A soft ink glow follows the pointer over cards.
+        document.addEventListener("pointermove", (event) => {
+            const card = event.target.closest(".card, .angle, .dropzone, .tips");
+            if (!card) return;
+            const rect = card.getBoundingClientRect();
+            card.style.setProperty("--mx", `${event.clientX - rect.left}px`);
+            card.style.setProperty("--my", `${event.clientY - rect.top}px`);
+        }, { passive: true });
+    }
+
+    // --- Light / dark switch. Remembers the choice; until then the browser setting decides.
+    const rootEl = document.documentElement;
+    const isDark = () => (rootEl.dataset.theme ? rootEl.dataset.theme === "dark" : matchMedia("(prefers-color-scheme: dark)").matches);
+    const themeButtons = $$("[data-theme-toggle]");
+    const labelThemeButtons = () => themeButtons.forEach((button) => {
+        button.setAttribute("aria-label", isDark() ? "Switch to light mode" : "Switch to dark mode");
+    });
+    labelThemeButtons();
+    themeButtons.forEach((button) => button.addEventListener("click", () => {
+        const next = isDark() ? "light" : "dark";
+        const apply = () => {
+            rootEl.dataset.theme = next;
+            try { localStorage.setItem("theme", next); } catch (error) { /* private mode: still switches for this page */ }
+            labelThemeButtons();
+        };
+        if (!document.startViewTransition || reduceMotion) return apply();
+        // The new theme spreads out in a circle from the button.
+        const rect = button.getBoundingClientRect();
+        const x = rect.left + rect.width / 2;
+        const y = rect.top + rect.height / 2;
+        const radius = Math.hypot(Math.max(x, innerWidth - x), Math.max(y, innerHeight - y));
+        rootEl.classList.add("theme-switching");
+        const transition = document.startViewTransition(apply);
+        transition.ready.then(() => rootEl.animate(
+            { clipPath: [`circle(0px at ${x}px ${y}px)`, `circle(${radius}px at ${x}px ${y}px)`] },
+            { duration: 750, easing: "cubic-bezier(0.65, 0, 0.35, 1)", pseudoElement: "::view-transition-new(root)" },
+        )).catch(() => {});
+        transition.finished.finally(() => rootEl.classList.remove("theme-switching"));
+    }));
+
+    // --- Step labels decode like a split-flap board on arrival (mono font, so nothing shifts).
+    if (!reduceMotion) {
+        const glyphs = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789/·";
+        $$(".page-head .eyebrow, .auth-form .eyebrow").forEach((label) => {
+            const text = label.textContent;
+            let frame = 0;
+            const tick = () => {
+                const shown = Math.floor(++frame / 2);
+                label.textContent = Array.from(text, (char, i) => (i < shown || char === " " ? char : glyphs[Math.floor(Math.random() * glyphs.length)])).join("");
+                if (shown < text.length) requestAnimationFrame(tick);
+            };
+            requestAnimationFrame(tick);
+        });
+    }
+
+    // --- Picking an angle sends an ink ripple out from the click.
+    if (!reduceMotion) {
+        document.addEventListener("pointerdown", (event) => {
+            const angle = event.target.closest(".angle");
+            if (!angle) return;
+            const rect = angle.getBoundingClientRect();
+            const ripple = document.createElement("span");
+            ripple.className = "ripple";
+            ripple.style.left = `${event.clientX - rect.left}px`;
+            ripple.style.top = `${event.clientY - rect.top}px`;
+            ripple.style.setProperty("--d", `${Math.hypot(rect.width, rect.height) * 2}px`);
+            angle.append(ripple);
+            ripple.addEventListener("animationend", () => ripple.remove());
+        });
+    }
 })();
