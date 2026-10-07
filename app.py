@@ -17,6 +17,7 @@ from typing import Any
 from urllib.parse import quote, urlencode
 
 import anyio.to_thread
+from bs4 import BeautifulSoup
 from dotenv import load_dotenv
 from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import HTMLResponse, RedirectResponse, Response
@@ -29,8 +30,10 @@ from supabase import create_client
 from supabase_auth.helpers import generate_pkce_challenge, generate_pkce_verifier
 
 from src.anchor_generator import generate_anchors
-from src.company_researcher import research_company
+from src.company_researcher import cap_text, extract_company_text, fetch_company_html, research_company
 from src.cover_letter_generator import generate_cover_letter, generate_cover_letter_revision
+from src.resume_facts import select_resume_facts
+from src.send_checks import send_check_items
 from src.database import (
     delete_all_resumes_for_user,
     delete_cover_letter_for_user,
@@ -387,18 +390,82 @@ def account_name(request: Request) -> str:
     return str((request.session.get("auth_user") or {}).get("full_name") or "").strip()
 
 
-def letter_name_for(request: Request, user_id: str, access_token: str | None, refresh_token: str | None) -> str | None:
+def letter_name_for(request: Request, resume_rows: list[dict[str, Any]]) -> str | None:
     """Name signed under every letter: the account name first (the user confirmed it), then the resume."""
-    return account_name(request) or candidate_name_for_user(user_id, access_token, refresh_token)
+    return account_name(request) or candidate_name_from_rows(resume_rows)
 
 
-def candidate_name_for_user(user_id: str, access_token: str | None, refresh_token: str | None) -> str | None:
-    """Candidate name from the authenticated user's own resume (server-side, user-scoped); None if not identifiable."""
-    for resume in get_resumes_for_user(user_id, access_token=access_token, refresh_token=refresh_token):
+def candidate_name_from_rows(resume_rows: list[dict[str, Any]]) -> str | None:
+    """Candidate name from the user's own resume rows; None if not identifiable."""
+    for resume in resume_rows:
         name = extract_candidate_name(str(resume.get("extracted_text") or ""))
         if name:
             return name
     return None
+
+
+def build_source_texts(
+    resume_rows: list[dict[str, Any]],
+    previous_letters: list[tuple[str, str]],
+    job_description: str,
+    selected_anchor: dict[str, Any],
+    candidate_name: str | None,
+    company_url: str,
+) -> list[str]:
+    """Everything a letter may draw facts from (full texts, not prompt snippets); used only for plain-code fact checks."""
+    texts = [str(row.get("extracted_text") or "") for row in resume_rows]
+    texts += [text for _, text in previous_letters]
+    texts.append(job_description)
+    texts += [value for value in selected_anchor.values() if isinstance(value, str)]
+    texts += [candidate_name or "", company_url]
+    return [text for text in texts if text]
+
+
+def load_letter_source_texts(request: Request, user_id: str, job_application_id: str) -> list[str] | None:
+    """Source texts for the letter page's checks when the route has not loaded them: three reads in parallel.
+
+    None (checks run without the unsupported-facts note) if anything is missing or fails.
+    """
+    try:
+        access_token, refresh_token = get_request_session_tokens(request)
+        tokens = {"access_token": access_token, "refresh_token": refresh_token}
+        with ThreadPoolExecutor(max_workers=3) as pool:
+            job_future = pool.submit(get_job_application, user_id, job_application_id=job_application_id, **tokens)
+            resumes_future = pool.submit(get_resumes_for_user, user_id, **tokens)
+            letters_future = pool.submit(get_cover_letters_for_user, user_id, **tokens)
+            job_application, resume_rows, letter_rows = job_future.result(), resumes_future.result(), letters_future.result()
+        if not job_application:
+            return None
+        previous_letters = [(str(row.get("filename") or ""), str(row.get("content") or "")) for row in letter_rows if row.get("content")]
+        selected_anchor = job_application.get("selected_anchor")
+        return build_source_texts(
+            resume_rows,
+            previous_letters,
+            str(job_application.get("job_description") or ""),
+            selected_anchor if isinstance(selected_anchor, dict) else {},
+            letter_name_for(request, resume_rows),
+            str(job_application.get("company_url") or ""),
+        )
+    except Exception as exc:
+        logger.warning("letter page sources unavailable (%s); showing checks without them", type(exc).__name__)
+        return None
+
+
+def resume_facts_for(
+    resume_rows: list[dict[str, Any]],
+    job_description: str,
+    selected_anchor: dict[str, Any] | None,
+    previous_letters: list[tuple[str, str]],
+) -> str:
+    """Relevant resume lines for the letter prompt; "" (letter still generated) if selection fails. Logs counts only."""
+    try:
+        resume_text = "\n\n".join(str(row.get("extracted_text") or "") for row in resume_rows if row.get("extracted_text"))
+        facts = select_resume_facts(resume_text, job_description, selected_anchor, previous_letters)
+    except Exception as exc:
+        logging.getLogger(__name__).warning("resume facts selection failed (%s); continuing without them", type(exc).__name__)
+        return ""
+    logging.getLogger(__name__).info("resume facts: %d lines", len(facts.splitlines()))
+    return facts
 
 
 def profile_materials_fingerprint(resumes: list[dict[str, Any]], cover_letters: list[dict[str, Any]]) -> str:
@@ -447,15 +514,26 @@ def build_profile_status(request: Request, user_id: str, materials: dict[str, An
     }
 
 
-def render_cover_letter_page(request: Request, user: dict[str, Any], job_application_id: str, chain: list[dict[str, Any]], error: str | None = None, *, dialog_step: str | None = None, feedback_draft: str = ""):
-    """Render the letter page for a job's revision chain (ordered oldest revision first)."""
+def render_cover_letter_page(request: Request, user: dict[str, Any], job_application_id: str, chain: list[dict[str, Any]], error: str | None = None, *, dialog_step: str | None = None, feedback_draft: str = "", source_texts: list[str] | None = None):
+    """Render the letter page for a job's revision chain (ordered oldest revision first).
+
+    "Check before sending" notes are computed here on every render, never stored; without source_texts the
+    unsupported-facts note is skipped.
+    """
     current = chain[-1] if chain else None
     final_letter = next((record for record in chain if record.get("is_final")), None)
     shown = final_letter or current
     revision_number = int(current.get("revision_number") or 0) if current else 0
+    shown_text = str(shown.get("content") or "") if shown else ""
+    try:
+        send_checks = send_check_items(shown_text, source_texts)
+    except Exception as exc:
+        logger.warning("letter checks failed (%s); page shown without them", type(exc).__name__)
+        send_checks = []
     return templates.TemplateResponse("generated_cover_letter.html", {
         "request": request,
         "user": user,
+        "send_checks": send_checks,
         "cover_letter": shown.get("content") if shown else "",
         "cover_letter_id": shown.get("id") if shown else "",
         "job_application_id": job_application_id,
@@ -882,6 +960,55 @@ def profile_ready(request: Request):
         return RedirectResponse(url="/login", status_code=303)
 
 
+THIN_RESEARCH_CHARS = 800
+USER_REASON_MAX_CHARS = 300
+FALLBACK_URL_MAX_CHARS = 1500
+FALLBACK_TEXT_MAX_CHARS = 3000
+
+
+def company_fallback_section(company_extra: str) -> tuple[str, str] | None:
+    """Turn the optional 'company text or another page URL' box into (source label, text), or None if it yields nothing."""
+    extra = (company_extra or "").strip()
+    if not extra:
+        return None
+    if "\n" not in extra and re.match(r"https?://\S+$", extra, re.IGNORECASE):
+        try:
+            # Same public-address (SSRF) checks as the main company URL.
+            text = cap_text(extract_company_text(extra, fetch_company_html(extra)), FALLBACK_URL_MAX_CHARS)
+        except Exception:
+            return None
+        return (extra, text) if text else None
+    plain = BeautifulSoup(extra, "html.parser").get_text(" ")
+    lines = [" ".join(line.split()) for line in plain.splitlines()]
+    text = cap_text("\n".join(line for line in lines if line), FALLBACK_TEXT_MAX_CHARS)
+    return ("pasted by the user", text) if text else None
+
+
+def research_with_fallback(company_url: str, company_extra: str) -> dict[str, Any]:
+    """Main company research plus the optional fallback box; re-raises the main error only if both give nothing."""
+    try:
+        research = research_company(company_url)
+        main_error = None
+    except Exception as exc:
+        logger.warning("company research failed url=%s: %s: %s", company_url, type(exc).__name__, exc)
+        research, main_error = None, exc
+    fallback = company_fallback_section(company_extra)
+    if research is None and fallback is None:
+        raise main_error
+    research = research or {}
+    text = str(research.get("company_research") or "")
+    pages = list(research["pages"]) if isinstance(research.get("pages"), list) else None
+    if fallback:
+        source, fallback_text = fallback
+        text = f"{text}\n\n### Source: {source}\n{fallback_text}" if text else f"### Source: {source}\n{fallback_text}"
+        if pages is not None and source.startswith("http"):
+            pages.append(source)
+    result = {"company_url": company_url, "company_research": text, "fallback_used": fallback is not None}
+    if pages is not None:
+        result["pages"] = pages
+    return result
+
+
 @app.get("/profile/job-input", response_class=HTMLResponse)
 def job_input_page(request: Request):
     try:
@@ -904,7 +1031,13 @@ NO_COMPANY_RESEARCH = (
 
 
 @app.post("/profile/job-input", response_class=HTMLResponse)
-def submit_job_input(request: Request, job_description: str = Form(...), company_url: str = Form(...)):
+def submit_job_input(
+    request: Request,
+    job_description: str = Form(...),
+    company_url: str = Form(...),
+    company_extra: str = Form(""),
+    user_reason: str = Form(""),
+):
     try:
         user = app_user_for_request(request)
         jd = (job_description or "").strip()
@@ -919,11 +1052,13 @@ def submit_job_input(request: Request, job_description: str = Form(...), company
         access_token, refresh_token = get_request_session_tokens(request)
         enforce_daily_limit(request, user_id)
         try:
-            company_research = research_company(company_url_value)["company_research"]
-        except Exception as exc:
-            # The site may block bots, be down or be private: log it and carry on with the job description alone.
-            logger.warning("company research failed url=%s: %s: %s", company_url_value, type(exc).__name__, exc)
-            company_research = NO_COMPANY_RESEARCH
+            company_research = research_with_fallback(company_url_value, company_extra)
+        except Exception:
+            # The site may block bots, be down or be private (already logged): carry on with the job description alone.
+            company_research = {"company_url": company_url_value, "company_research": NO_COMPANY_RESEARCH}
+        request.session.pop("research_notice", None)
+        if len(company_research["company_research"]) < THIN_RESEARCH_CHARS and not (company_extra or "").strip():
+            request.session["research_notice"] = "thin"  # shown once on the angles page; never blocks the flow
         # Use this user's uploaded cover letters (the local extracted_letters folder held 8 letters and pushed
         # the anchor request over Groq's 7000 input-token limit).
         letter_rows = get_cover_letters_for_user(user_id, access_token=access_token, refresh_token=refresh_token)
@@ -934,13 +1069,21 @@ def submit_job_input(request: Request, job_description: str = Form(...), company
         ]
         if not letters:
             raise ValueError("No previous cover letters were found for your profile. Please upload them in Profile Setup.")
+        research_pages = company_research.get("pages") if isinstance(company_research, dict) else None
         anchor_payload = generate_anchors(
             company_url=company_url_value,
             job_description=jd,
-            company_research=company_research,
+            company_research=company_research["company_research"],
             letters=letters,
+            sources=research_pages if isinstance(research_pages, list) else None,
         )
         anchors = anchor_payload.get("anchors") if isinstance(anchor_payload, dict) else None
+        reason = " ".join((user_reason or "").split())[:USER_REASON_MAX_CHARS]
+        if reason and isinstance(anchors, list):
+            # Travels with whichever angle is chosen (selected_anchor) into the letter and revision prompts.
+            for anchor in anchors:
+                if isinstance(anchor, dict):
+                    anchor["user_reason"] = reason
         job_application = save_job_application(
             user_id,
             jd,
@@ -963,6 +1106,8 @@ def submit_job_input(request: Request, job_description: str = Form(...), company
                 "user": user,
                 "job_description": job_description or "",
                 "company_url": company_url or "",
+                "company_extra": company_extra or "",
+                "user_reason": user_reason or "",
                 "error": user_error(exc),
             })
         except HTTPException:
@@ -975,6 +1120,8 @@ def submit_job_input(request: Request, job_description: str = Form(...), company
                 "user": user,
                 "job_description": job_description or "",
                 "company_url": company_url or "",
+                "company_extra": company_extra or "",
+                "user_reason": user_reason or "",
                 "error": user_error(exc),
             })
         except HTTPException:
@@ -1007,6 +1154,7 @@ def company_angles_page(request: Request):
             "job_description": job_description,
             "job_application_id": str(job_application["id"]),
             "anchors": anchors,
+            "notice": request.session.pop("research_notice", None),  # shown once
             "error": None,
         })
     except HTTPException:
@@ -1082,7 +1230,8 @@ def select_company_angle(
         ]
         if not previous_letters:
             raise ValueError("No previous cover-letter evidence is available for this user.")
-        candidate_name = letter_name_for(request, user_id, access_token, refresh_token)
+        resume_rows = get_resumes_for_user(user_id, access_token=access_token, refresh_token=refresh_token)
+        candidate_name = letter_name_for(request, resume_rows)
 
         job_application_id = str(job_application["id"])
         existing_chain = get_generated_cover_letters_for_job(user_id, job_application_id, access_token=access_token, refresh_token=refresh_token)
@@ -1101,6 +1250,10 @@ def select_company_angle(
         )
 
         selected_anchors = [anchors[selected_index]]
+        try:
+            source_texts = build_source_texts(resume_rows, previous_letters, jd, anchors[selected_index], candidate_name, company_url_value)
+        except Exception:
+            source_texts = None  # the letter is still generated, just without the soft fact/style checks
         letter = generate_cover_letter(
             job_description=jd,
             selected_anchors=selected_anchors,
@@ -1108,6 +1261,8 @@ def select_company_angle(
             previous_letters=previous_letters,
             company_url=company_url_value,
             candidate_name=candidate_name,
+            resume_facts=resume_facts_for(resume_rows, jd, anchors[selected_index], previous_letters),
+            source_texts=source_texts,
         )
 
         saved_letter = save_generated_cover_letter(
@@ -1122,7 +1277,7 @@ def select_company_angle(
         )
 
         chain = [{**saved_letter, "content": letter, "revision_number": 0, "is_final": False, "feedback": None}]
-        return render_cover_letter_page(request, user, job_application_id, chain)
+        return render_cover_letter_page(request, user, job_application_id, chain, source_texts=source_texts)
     except HTTPException:
         return RedirectResponse(url="/login", status_code=303)
     except Exception as exc:
@@ -1187,17 +1342,23 @@ def revise_cover_letter(request: Request, job_application_id: str = Form(...), f
         ]
         if not previous_letters:
             raise ValueError("No previous cover-letter evidence is available for this user.")
+        # One resume query, used for both the candidate's name and the resume facts.
+        resume_rows = get_resumes_for_user(user_id, access_token=access_token, refresh_token=refresh_token)
+        revision_job_description = str(job_application.get("job_description") or "")
+        revision_company_url = str(job_application.get("company_url") or "")
+        revision_candidate_name = letter_name_for(request, resume_rows)
 
         revised_letter = generate_cover_letter_revision(
             current_letter=str(current.get("content") or ""),
             user_feedback=feedback_text,
-            job_description=str(job_application.get("job_description") or ""),
+            job_description=revision_job_description,
             selected_anchors=[selected_anchor],
             style_profile=style_profile,
             previous_letters=previous_letters,
-            company_url=str(job_application.get("company_url") or ""),
+            company_url=revision_company_url,
             feedback_history=[record["feedback"] for record in chain if record.get("feedback")],
-            candidate_name=letter_name_for(request, user_id, access_token, refresh_token),
+            candidate_name=revision_candidate_name,
+            resume_facts=resume_facts_for(resume_rows, revision_job_description, selected_anchor, previous_letters),
         )
 
         new_revision_number = revision_number + 1
@@ -1213,7 +1374,11 @@ def revise_cover_letter(request: Request, job_application_id: str = Form(...), f
             refresh_token=refresh_token,
         )
         chain.append({**saved_letter, "content": revised_letter, "revision_number": new_revision_number, "is_final": False, "feedback": feedback_text})
-        return render_cover_letter_page(request, user, job_application_id, chain)
+        try:
+            source_texts = build_source_texts(resume_rows, previous_letters, revision_job_description, selected_anchor, revision_candidate_name, revision_company_url)
+        except Exception:
+            source_texts = None  # the page still shows the other checks
+        return render_cover_letter_page(request, user, job_application_id, chain, source_texts=source_texts)
     except Exception as exc:
         return render_cover_letter_page(request, user, job_application_id, chain, error=user_error(exc))
 
@@ -1236,7 +1401,8 @@ def accept_cover_letter(request: Request, job_application_id: str = Form(...), c
         mark_generated_cover_letter_final(user_id, job_application_id, cover_letter_id, access_token=access_token, refresh_token=refresh_token)
         for record in chain:
             record["is_final"] = str(record.get("id")) == cover_letter_id
-        return render_cover_letter_page(request, user, job_application_id, chain)
+        source_texts = load_letter_source_texts(request, user_id, job_application_id)
+        return render_cover_letter_page(request, user, job_application_id, chain, source_texts=source_texts)
     except Exception as exc:
         return render_cover_letter_page(request, user, job_application_id, chain, error=user_error(exc))
 
@@ -1287,7 +1453,9 @@ async def view_cover_letter(request: Request):
     chain = get_generated_cover_letters_for_job(str(user["id"]), job_application_id, access_token=access_token, refresh_token=refresh_token)
     if not chain:
         return RedirectResponse(url="/company/angles", status_code=303)
-    return render_cover_letter_page(request, user, job_application_id, chain)
+    # In a worker thread so the parallel reads don't block the event loop.
+    source_texts = await anyio.to_thread.run_sync(load_letter_source_texts, request, str(user["id"]), job_application_id)
+    return render_cover_letter_page(request, user, job_application_id, chain, source_texts=source_texts)
 
 
 @app.post("/cover-letter/satisfaction", response_class=HTMLResponse)

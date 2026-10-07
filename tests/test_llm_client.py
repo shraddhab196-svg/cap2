@@ -77,6 +77,50 @@ class GatewayTests(unittest.TestCase):
             self.assertEqual(llm_client.fallback_models(), ["openrouter/a", "together_ai/b"])
 
 
+def rate_limit(message):
+    return litellm.RateLimitError(message=message, llm_provider="groq", model="m")
+
+
+class RateLimitRetryTests(unittest.TestCase):
+    def call(self, *outcomes):
+        """complete() against a router that raises/returns `outcomes` in order; returns (result or error, sleep mock, router mock)."""
+        completion = Mock(side_effect=list(outcomes))
+        with patch.object(llm_client, "get_router", return_value=SimpleNamespace(completion=completion)), \
+             patch.object(llm_client.time, "sleep") as sleep, self.assertLogs("llm", "INFO"):
+            try:
+                result = llm_client.complete("letter", MESSAGES, max_tokens=1200)
+            except llm_client.LLMError as exc:
+                result = exc
+        return result, sleep, completion
+
+    def test_waits_the_suggested_time_and_returns_a_successful_retry(self):
+        ok = SimpleNamespace(choices=[SimpleNamespace(message=SimpleNamespace(content="done"))])
+        result, sleep, completion = self.call(rate_limit("Rate limit reached. Please try again in 7.5s."), ok)
+        self.assertIs(result, ok)
+        sleep.assert_called_once_with(7.5)
+        self.assertEqual(completion.call_count, 2)
+        self.assertEqual(completion.call_args_list[0], completion.call_args_list[1])  # the same request again
+
+    def test_a_long_suggested_wait_is_capped_at_20_seconds(self):
+        _, sleep, _ = self.call(rate_limit("Please try again in 1m12.3s."), rate_limit("Please try again in 50s."))
+        sleep.assert_called_once_with(20.0)
+
+    def test_an_unparseable_message_uses_the_fallback_wait(self):
+        _, sleep, _ = self.call(rate_limit("over limit"), rate_limit("over limit"))
+        sleep.assert_called_once_with(llm_client.RATE_LIMIT_FALLBACK_WAIT_SECONDS)
+        self.assertLessEqual(llm_client.RATE_LIMIT_FALLBACK_WAIT_SECONDS, 20)
+
+    def test_a_second_rate_limit_still_raises_the_busy_error(self):
+        result, sleep, completion = self.call(rate_limit("Please try again in 2s."), rate_limit("Please try again in 3s."))
+        self.assertIsInstance(result, llm_client.LLMBusyError)
+        self.assertEqual(str(result), "Lots of people are writing right now. Please try again in a minute.")
+        self.assertEqual(completion.call_count, 2)  # exactly one extra call
+        sleep.assert_called_once()
+
+    def test_parses_milliseconds(self):
+        self.assertEqual(llm_client.rate_limit_wait_seconds("Please try again in 450ms."), 0.45)
+
+
 class ModuleIntegrationTests(unittest.TestCase):
     def test_busy_message_reaches_the_user_unchanged(self):
         from src import anchor_generator

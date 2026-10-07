@@ -2,11 +2,12 @@ from __future__ import annotations
 
 import ipaddress
 import logging
+import os
 import re
 import socket
 from pathlib import Path
 from typing import Any
-from urllib.parse import urljoin, urlsplit
+from urllib.parse import urljoin, urlsplit, urlunsplit
 
 import requests
 from bs4 import BeautifulSoup, NavigableString
@@ -32,6 +33,19 @@ REQUEST_HEADERS = {
     "Accept": "text/html,application/xhtml+xml;q=0.9,*/*;q=0.8",
     "Accept-Language": "en",
 }
+
+# Research size caps (characters, cut at a word boundary).
+MAIN_PAGE_MAX_CHARS = 3000
+EXTRA_PAGE_MAX_CHARS = 1500
+RESEARCH_MAX_CHARS = 6000
+MAX_EXTRA_PAGES = 2
+EXTRA_PAGE_TIMEOUT_SECONDS = 6
+# Extra same-site pages worth reading, in priority order.
+EXTRA_PAGE_KEYWORDS = (
+    ("about", "mission", "values"),
+    ("news", "blog", "press"),
+    ("career", "jobs"),
+)
 
 
 def check_public_url(url: str) -> None:
@@ -120,16 +134,72 @@ def extract_company_text(company_url: str, html: str) -> str:
     return cleaned
 
 
+def cap_text(text: str, limit: int) -> str:
+    """Shorten text to at most `limit` characters, cutting at the last word boundary."""
+    if len(text) <= limit:
+        return text
+    cut = text[:limit]
+    boundary = max(cut.rfind(" "), cut.rfind("\n"))
+    return (cut[:boundary] if boundary > 0 else cut).rstrip()
+
+
+def _host_key(hostname: str | None) -> str:
+    host = (hostname or "").lower()
+    return host[4:] if host.startswith("www.") else host
+
+
+def _url_key(url: str) -> str:
+    parts = urlsplit(url)
+    return f"{_host_key(parts.hostname)}{parts.path.rstrip('/')}?{parts.query}"
+
+
+def find_extra_page_urls(page_url: str, html: str, limit: int = MAX_EXTRA_PAGES) -> list[str]:
+    """Same-site links that look like about / news / careers pages (one per kind, in that priority)."""
+    site = _host_key(urlsplit(page_url).hostname)
+    seen = {_url_key(page_url)}
+    by_kind: list[list[str]] = [[] for _ in EXTRA_PAGE_KEYWORDS]
+    for link in BeautifulSoup(html, "html.parser").find_all("a", href=True):
+        absolute = urljoin(page_url, link["href"].strip())
+        parts = urlsplit(absolute)
+        if parts.scheme not in ("http", "https") or _host_key(parts.hostname) != site:
+            continue
+        url = urlunsplit((parts.scheme, parts.netloc, parts.path, parts.query, ""))
+        key = _url_key(url)
+        if key in seen:
+            continue
+        label = f"{link.get_text(' ', strip=True)} {parts.path}".lower()
+        for kind, words in enumerate(EXTRA_PAGE_KEYWORDS):
+            if any(word in label for word in words):
+                by_kind[kind].append(url)
+                seen.add(key)
+                break
+    return [urls[0] for urls in by_kind if urls][:limit]
+
+
+def extra_pages_enabled() -> bool:
+    return os.getenv("COMPANY_RESEARCH_EXTRA_PAGES", "1").strip() != "0"
+
+
 def research_company(company_url: str) -> dict[str, Any]:
-    """Fetch and summarize company research text from the supplied website."""
-    logger.info("Company URL: %s", company_url)
-    logger.info("Researching company...")
-
+    """Fetch the company's main page plus up to two same-site about/news/careers pages, capped and labeled by source."""
     html = fetch_company_html(company_url)
-    readable_text = extract_company_text(company_url, html)
+    sections = [(company_url, cap_text(extract_company_text(company_url, html), MAIN_PAGE_MAX_CHARS))]
 
-    logger.info("Company research complete.")
+    skipped = 0
+    if extra_pages_enabled():
+        for url in find_extra_page_urls(company_url, html):
+            try:
+                # fetch_company_html applies the public-address (SSRF) check to every hop.
+                page_text = extract_company_text(url, fetch_company_html(url, timeout=EXTRA_PAGE_TIMEOUT_SECONDS))
+            except Exception:  # an optional extra page; skip it quietly
+                skipped += 1
+                continue
+            sections.append((url, cap_text(page_text, EXTRA_PAGE_MAX_CHARS)))
+
+    research = cap_text("\n\n".join(f"### Source: {url}\n{text}" for url, text in sections), RESEARCH_MAX_CHARS)
+    logger.info("Company research complete: pages=%d skipped=%d chars=%d", len(sections), skipped, len(research))
     return {
         "company_url": company_url,
-        "company_research": readable_text,
+        "company_research": research,
+        "pages": [url for url, _ in sections],
     }

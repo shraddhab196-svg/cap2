@@ -43,7 +43,6 @@ class SatisfactionFlowTests(unittest.TestCase):
         html = self.client.post("/cover-letter/revise", data={"job_application_id": "job-1", "feedback": "Make it tighter"}).text
         self.assertEqual(self.mock_revise.call_count, 1)
         self.assertEqual(self.mock_save_letter.call_args.kwargs["revision_number"], 3)
-        self.assertIn("Your cover letter is ready 🎉", html)
         self.assertIn("You've completed 3 revisions. Are you satisfied with your cover letter?", html)
         self.assertIn(">YES</button>", html)
         self.assertIn(">NO</button>", html)
@@ -172,7 +171,7 @@ class SatisfactionFlowTests(unittest.TestCase):
         self.mock_revise.reset_mock()
         html = self.client.post("/cover-letter/revise", data={"job_application_id": "job-1", "feedback": "One more"}).text
         self.assertEqual(self.mock_revise.call_count, 0)
-        self.assertIn("Your cover letter is ready 🎉", html)
+        self.assertIn("You've completed 3 revisions. Are you satisfied with your cover letter?", html)
 
 
 if __name__ == "__main__":

@@ -24,6 +24,18 @@
                     <input class="input" id="company_url" name="company_url" type="url" placeholder="https://company.com" value="{{ company_url or '' }}" required data-msg-missing="Add the company's website so we can learn what they're about." data-msg-format="That doesn't look like a web address. Try something like https://company.com." />
                 </div>
 
+                <div class="field">
+                    <label class="field-label" for="company_extra">Company text or another page URL (optional)</label>
+                    <span class="field-hint" id="company_extra_hint">Use this if the site is thin or couldn't be opened.</span>
+                    <textarea class="input" id="company_extra" name="company_extra" rows="4" aria-describedby="company_extra_hint">{{ company_extra or '' }}</textarea>
+                </div>
+
+                <div class="field">
+                    <label class="field-label" for="user_reason">Why this company, in one line (optional)</label>
+                    <span class="field-hint" id="user_reason_hint">Your real reason. The letter builds its 'why them' part on it.</span>
+                    <input class="input" id="user_reason" name="user_reason" type="text" maxlength="300" value="{{ user_reason or '' }}" aria-describedby="user_reason_hint" />
+                </div>
+
                 <div class="actions">
                     <button type="submit" class="btn" data-magnetic>Continue</button>
                 </div>

@@ -6,6 +6,7 @@ import os
 import re
 from pathlib import Path
 from typing import Any
+from urllib.parse import urlsplit
 
 from dotenv import load_dotenv
 
@@ -97,7 +98,7 @@ def build_anchor_prompt(company_url: str, job_description: str, company_research
         snippet = text.strip()
         if len(snippet) > 5000:
             snippet = snippet[:5000] + "\n... [truncated for analysis]"
-        letter_sections.append(f"--- LETTER {index} ({name}) ---\n{snippet}\n")
+        letter_sections.append(f"--- LETTER {index} ---\n{snippet}\n")  # position, not filename (filenames can name companies)
 
     return f"""
 You are identifying evidence-based, personalized anchors that connect a company, a job, and the candidate's prior experience.
@@ -114,6 +115,7 @@ An anchor is not a generic statement about liking the company or being passionat
 Hard rules:
 - Use only information present in the company research, job description, and the candidate's previous cover letters.
 - Do not invent company facts, candidate skills, achievements, technologies, projects, or responsibilities.
+- company_evidence must use wording taken directly from the company research: copy a complete sentence from it (or keep its exact wording as closely as possible) instead of paraphrasing. It must describe a fact about the company found in company research, not a requirement from the job description or evidence about the candidate. Do not add the company's name or any detail the copied text does not contain.
 - Do not write a final cover letter.
 - Do not produce generic statements such as "I am passionate about your company," "I admire your mission," or "I would love to work here."
 - Do not generate duplicate anchors that just restate the same connection in a different way.
@@ -179,11 +181,61 @@ Quality bar:
 - 3 to 5 distinct anchors when genuinely supported by the evidence.
 - Different anchors should usually correspond to different evidence dimensions (for example: manufacturing ML pipeline, deployment experience, stakeholder communication, business impact, or technology stack alignment).
 - Each anchor must be specific and evidence-based.
+- Each anchor's source_url must be one of the "### Source:" URLs in the company research.
 - Use clean JSON only.
 """.strip()
 
 
-def generate_anchors(company_url: str, job_description: str, company_research: str, letters: list[tuple[str, str]]) -> dict[str, Any]:
+MATCH_SHORT_EVIDENCE_WORDS = 8
+MATCH_NGRAM = 4
+MATCH_MIN_SHARE = 0.6
+
+
+def normalize_for_match(text: str) -> str:
+    """Lowercase, drop punctuation and quotes, collapse whitespace."""
+    return " ".join(re.sub(r"[^\w\s]", " ", str(text or "").lower()).split())
+
+
+def evidence_matches_research(evidence: str, research: str) -> bool:
+    """Wording overlap between an anchor's company evidence and the fetched research (overlap, not truth)."""
+    evidence_words = normalize_for_match(evidence).split()
+    research_text = normalize_for_match(research)
+    if not evidence_words or not research_text:
+        return False
+    if len(evidence_words) < MATCH_SHORT_EVIDENCE_WORDS:
+        return f" {' '.join(evidence_words)} " in f" {research_text} "
+    research_words = research_text.split()
+    research_grams = {tuple(research_words[i:i + MATCH_NGRAM]) for i in range(len(research_words) - MATCH_NGRAM + 1)}
+    grams = [tuple(evidence_words[i:i + MATCH_NGRAM]) for i in range(len(evidence_words) - MATCH_NGRAM + 1)]
+    return sum(gram in research_grams for gram in grams) / len(grams) >= MATCH_MIN_SHARE
+
+
+def clean_source_url(source_url: Any, company_url: str, sources: list[str] | None) -> str:
+    """Keep an http(s) source URL (and, when the fetched pages are known, only one of them); else the company URL."""
+    url = str(source_url or "").strip()
+    parts = urlsplit(url)
+    if parts.scheme in ("http", "https") and parts.netloc:
+        if sources is None or url.rstrip("/") in {str(source).rstrip("/") for source in sources}:
+            return url
+    return company_url
+
+
+def annotate_anchors(anchors: list[dict[str, Any]], company_url: str, company_research: str, sources: list[str] | None) -> list[dict[str, Any]]:
+    """Add a checked source_url and company_evidence_matched to every anchor; never drops or reorders anchors."""
+    for anchor in anchors:
+        anchor["source_url"] = clean_source_url(anchor.get("source_url"), company_url, sources)
+        anchor["company_evidence_matched"] = evidence_matches_research(anchor.get("company_evidence", ""), company_research)
+    return anchors
+
+
+def generate_anchors(
+    company_url: str,
+    job_description: str,
+    company_research: str,
+    letters: list[tuple[str, str]],
+    *,
+    sources: list[str] | None = None,
+) -> dict[str, Any]:
     """Call Groq to generate the anchor set in valid JSON."""
     load_environment()
     client, model_name = get_llm_client()
@@ -252,7 +304,7 @@ def generate_anchors(company_url: str, job_description: str, company_research: s
         useful_anchors = [{**FALLBACK_ANCHOR, "source_url": company_url}]
 
     payload["company_url"] = company_url
-    payload["anchors"] = useful_anchors[:5]
+    payload["anchors"] = annotate_anchors(useful_anchors[:5], company_url, company_research, sources)
     return payload
 
 

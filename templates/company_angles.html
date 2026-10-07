@@ -15,6 +15,10 @@
         <div class="alert" role="alert" style="margin-bottom: 24px">{{ error }}</div>
         {% endif %}
 
+        {% if notice == "thin" %}
+        <p class="helper" role="status" style="margin-bottom: 24px">We found little text on this company's site, so these angles lean on the job description. Go back and add company text for stronger ones.</p>
+        {% endif %}
+
         <form method="post" action="/company/angles" data-overlay="Opening a fresh page…|Writing in your voice…|Weaving in the company story…|Polishing the last line…">
             <input type="hidden" name="job_description" value="{{ job_description }}" />
             <input type="hidden" name="company_url" value="{{ company_url }}" />
@@ -33,7 +37,17 @@
                     </label>
                     <p class="angle-pitch">{{ anchor.anchor }}</p>
                     <dl class="evidence">
-                        {% if anchor.company_evidence %}<div><dt>Company evidence</dt><dd>{{ anchor.company_evidence }}</dd></div>{% endif %}
+                        {% if anchor.company_evidence %}<div><dt>Company evidence</dt><dd>{{ anchor.company_evidence }}
+                            {%- if anchor.company_evidence_matched is sameas true %}
+                            <span class="evidence-match is-matched">Matched on the page</span>
+                            {%- elif anchor.company_evidence_matched is sameas false %}
+                            <span class="evidence-match is-unmatched">Couldn't match this to the page. Check it before relying on it.</span>
+                            {%- endif %}
+                        </dd></div>{% endif %}
+                        {# No link when the source is just the company URL the user typed. #}
+                        {% if anchor.company_evidence_matched is defined and anchor.source_url is string and anchor.source_url.startswith('http') and anchor.source_url.rstrip('/') != (company_url or '').rstrip('/') %}
+                        <div><dt>Source</dt><dd><a class="evidence-source" href="{{ anchor.source_url }}" target="_blank" rel="noopener noreferrer">{{ anchor.source_url }}</a></dd></div>
+                        {% endif %}
                         {% if anchor.job_connection %}<div><dt>Job connection</dt><dd>{{ anchor.job_connection }}</dd></div>{% endif %}
                         {% if anchor.candidate_evidence %}<div><dt>Candidate evidence</dt><dd>{{ anchor.candidate_evidence }}</dd></div>{% endif %}
                     </dl>
