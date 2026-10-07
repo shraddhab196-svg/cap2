@@ -38,6 +38,17 @@ class LandingPageTests(unittest.TestCase):
             self.assertEqual(self.client.get("/healthz").json(), {"ok": True, "commit": "abc1234"})
         self.assertEqual(self.client.head("/healthz").status_code, 200)
 
+    def test_public_pages_answer_head_for_link_checkers_and_fetchers(self):
+        for path in ("/", "/privacy", "/terms", "/imprint", "/robots.txt"):
+            with self.subTest(path):
+                self.assertEqual(self.client.head(path).status_code, 200)
+
+    def test_robots_txt_allows_crawlers(self):
+        response = self.client.get("/robots.txt")
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(response.headers["content-type"].startswith("text/plain"))
+        self.assertIn("User-agent: *\nAllow: /", response.text)
+
 
 if __name__ == "__main__":
     unittest.main()

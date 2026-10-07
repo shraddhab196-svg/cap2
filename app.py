@@ -561,7 +561,14 @@ async def healthz():
     return {"ok": True, "commit": os.getenv("RENDER_GIT_COMMIT", "")[:7]}
 
 
-@app.get("/", response_class=HTMLResponse)
+@app.api_route("/robots.txt", methods=["GET", "HEAD"], include_in_schema=False)
+async def robots_txt():
+    # Without this the URL 404s, and some crawlers and AI fetchers then skip the site. Signed-in pages still need a login.
+    return Response("User-agent: *\nAllow: /\n", media_type="text/plain")
+
+
+# HEAD too: link checkers and AI fetchers often send HEAD first and read a 405 as "blocked".
+@app.api_route("/", methods=["GET", "HEAD"], response_class=HTMLResponse)
 async def home(request: Request):
     return templates.TemplateResponse("landing.html", {"request": request, "user": get_authenticated_user(request)})
 
@@ -569,7 +576,7 @@ async def home(request: Request):
 def add_legal_page(page: str) -> None:
     async def legal_page(request: Request):
         return templates.TemplateResponse(f"{page}.html", {"request": request})
-    app.add_api_route(f"/{page}", legal_page, methods=["GET"], response_class=HTMLResponse, include_in_schema=False)
+    app.add_api_route(f"/{page}", legal_page, methods=["GET", "HEAD"], response_class=HTMLResponse, include_in_schema=False)
 
 
 for _page in ("privacy", "terms", "imprint"):
